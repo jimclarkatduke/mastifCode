@@ -1,0 +1,8 @@
+﻿name,variable,fun,yearStart,monthStart,yearEnd,monthEnd,site,anom,order,minRange,minSd,priorSign
+springTmin,tmin,min,-1,12,0,4,0,1,1,2,0.3,positive
+deficit,def,mean,-1,6,-1,8,1,1,1,40,5,negative
+deficit,def,mean,0,6,0,8,1,1,1,40,5,negative
+degDays,temp,sum,-1,1,-1,12,1,0,2,500,50,
+cec,cec,,,,,,,,,5,1,
+sand,sand,,,,,,,,,20,2,
+diam:deficitSite,,,,,,,,,,,,

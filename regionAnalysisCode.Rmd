@@ -2429,20 +2429,16 @@ plotRegion <- read.csv('mastPlotsAll.csv',stringsAsFactors = F)
 plotRegion <- plotRegion[!duplicated(plotRegion$plot),]
 rownames(plotRegion) <- .replaceString(plotRegion$plot, '_', '')
 
-regions <- c('east','west','europe')
+regions <- c('east','west','europe', 'south', 'asia', 'africa')
+genFull <- character(0)
+for(k in 1:length(regions)){
+  ft <- paste(path, opath, regions[k], sep='')
+  files <- list.files(ft, full.names=T)
+  gen   <- list.files(ft)
+  gg <- columnSplit(gen,'.Rdata')[,1]
+  genFull <- c(genFull, gg)
+}
 
-ft <- paste(path, opath, regions[1], sep='')
-files <- list.files(ft, full.names=T)
-gen   <- list.files(ft)
-
-genFull <- columnSplit(gen,'.Rdata')[,1]
-
-ft <- paste(path, opath, regions[2], sep='')
-files <- list.files(ft, full.names=T)
-gen   <- list.files(ft)
-
-genFull <- c(genFull, columnSplit(gen,'.Rdata')[,1])
-#genCode <- substr(genFull, 1, 4)
 genFull <- sort(unique(genFull))
 
 ff <- 'combo2_surDefLagPredict0'
@@ -2452,7 +2448,7 @@ ff <- 'combo2_surDefLagPredict0'
 
 diamFec <- inflection <- dfScaled <- numeric(0)
 
-ie <- 5
+ie <- 1
 
 for(t in ie:length(genFull)){
   
@@ -2464,9 +2460,10 @@ for(t in ie:length(genFull)){
   
     file <- paste(inFold, genFull[t],"Output.rdata", sep='')
     
-    if(!file.exists(file))next
-    
-    print(file)
+    if( !file.exists( file ) )next
+
+    if( file.info( file )$size >  100000000 ) next # just for now
+
     load(file)
     
     outFolder <- paste('diamFec/',reg,'/',genFull[t],sep='')
@@ -2474,7 +2471,14 @@ for(t in ie:length(genFull)){
     DE <- dir.exists(outFolder)
     if(!DE)dir.create(outFolder, recursive=T)
     
-    tmp <- mastPlot( output, list(MAPS = F, SAVEPLOTS = T, outFolder = outFolder) )
+    check <- try(
+      tmp <- mastPlot( output, list(MAPS = F, SAVEPLOTS = T, outFolder = outFolder) ), 
+      silent = TRUE)
+    
+    rm(output)
+    
+    if( inherits(check, "try-error") )next
+    
     if(length(tmp) == 0)next
     tmp <- tmp$diam90
     
@@ -2503,14 +2507,20 @@ for(t in ie:length(genFull)){
     }
     names(drk) <- fname
     dfScaled <- append(dfScaled, as.list(drk))
+    
+  # clean up plot files
+  frm <- list.files( outFolder, full.names = T )
+  file.remove(frm, recursive = T)
   }
 }
 
 incSpec <- optSpec <- character(0)
 width <- rep(0, length(dfScaled))
+
 for( k in 1:length(dfScaled)){
   nm <- names(dfScaled)[k]
   wm <- which.max( dfScaled[[k]][2,] )
+  if( !is.finite(wm) ) next
   
   width[k] <- 1/diff( dfScaled[[k]][ 3:4, wm ] )
   
@@ -2539,7 +2549,8 @@ for(k in io){
   lines(dfScaled[[k]][1,], dfScaled[[k]][2,], lwd = (1 + width[k]^.5), 
         col = .getColor('black', width[k]))
 }
-.plotLabel('a) Region-spp with optimum', above=T, cex=.95)
+lab <- paste( 'a)', length(io), 'regions-spp have optima' )
+.plotLabel(lab, above=T, cex=1)
 
 plot( dfScaled[[ii[1]]][1,], dfScaled[[ii[1]]][2,], xlim=c(0,1), ylim = c(0, 1),
       type='l', lwd =  1 + width[ii[1]]^.5, 
@@ -2548,7 +2559,8 @@ for(k in ii){
   lines(dfScaled[[k]][1,], dfScaled[[k]][2,], lwd = 1 + width[k]^.5,
         col = .getColor('black', width[k]))
 }
-.plotLabel('b) Without optimum', above=T, cex=.95)
+lab <- paste( 'b)', length(ii), 'regions-spp do not' )
+.plotLabel( lab, above=T, cex=1)
 mtext(xlab, side=1, outer  = TRUE, line=0)
 mtext(ylab, side=2, outer  = TRUE, line=0)
 

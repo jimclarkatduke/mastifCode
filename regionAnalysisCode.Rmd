@@ -92,9 +92,6 @@ if(user == 'journe'){
 
 }
 
-
-
-
 path  <- paste(kpath, "makeMast/", sep="")
 path1 <- paste(dpath, 'treesActive/',sep='')
 mpath <- paste(path, 'climateBuild/mastFormat/', sep='')

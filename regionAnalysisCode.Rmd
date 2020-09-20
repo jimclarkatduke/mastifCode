@@ -17,12 +17,14 @@ The globe is divided up into regions.  The `character` variable `region` can hav
 
 Set up your paths, identified by `"user"`:
 
+
 ```{r, eval = F}
 
 user <- 'unix'
 user <- 'rStudioServer'
 user <- 'mac2unix'
 user <- 'mac'
+user <- "journe"
 ```
 
 
@@ -76,11 +78,33 @@ if(user == 'mac'){
   Rcpp::sourceCpp('/Users/jimclark/makeMastOnJimClark/makeMast/RcppFunctions/cppFns.cpp')
   source('/Users/jimclark/makeMastOnJimClark/makeMast/RFunctions/mastifFunctions.R')
 }
+if(user == 'journe'){
+  kpath <- "/home/journe/Documents/Server/"
+  path <- "/home/journe/Documents/Server/makeMast/"
+  dpath  <- "/home/journe/Documents/Server/allocationmodel/dataFiles/"
+  cpath  <- "compressedFiles/"
+  opath  <- "combinedSites/"
+  #fpath  <- "/home/journe/Documents/Server/fia/"
+  Rcpp::sourceCpp('/home/journe/Documents/Server/makeMast/RcppFunctions/cppFns.cpp')
+  source('/home/journe/Documents/Server/makeMast/RFunctions/mastifFunctions.R')
+  modelFile <- "/home/journe/Documents/Server/journepostdoc/mastifCode/modelTemperate.csv"
+  source('/home/journe/Documents/Server/journepostdoc/mastifCode/mastifFunctions.R')
+
+}
+
+
 path  <- paste(kpath, "makeMast/", sep="")
 path1 <- paste(dpath, 'treesActive/',sep='')
 mpath <- paste(path, 'climateBuild/mastFormat/', sep='')
 
+modelFile <- "modelTemperate.csv" #for Jim 
+
+#knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_knit$set(root.dir = "/home/journe/Documents/Server/makeMast/")
 setwd(path)
+```
+
+```{r, eval = F, echo=T}
 
 # names to omit from seed data:
 omitNames   <- c("abieFras_fruit","acerIMMA",
@@ -1428,7 +1452,7 @@ Settings and functions here:
 
 region <- 'south'
 
-modelFile <- 'modelTemperate.csv'   # file of predictors
+modelFile <- modelFile   # file of predictors
 
 plag <- p <- 0
 
@@ -2157,10 +2181,12 @@ for(t in ie:length(genFull)){
   treeData$ecoReg  <- rr
   treeData$ecoCode <- t3[rr]
   
+  #create folder 
   outPlots <- paste('envBySpeciesPlots/', region, '/',sep='')
-  
+    if(!dir.exists(outPlots))dir.create( outPlots, recursive = T )
+
   # predictors
-  ttt <- getPredictors( modelFile = "modelTemperate.csv", 
+  ttt <- getPredictors( modelFile = modelFile, 
                         mpath = mpath, outFolder = outPlots,
                         treeData, priorTable, dontUse = dontUse, verbose = T,
                         PLOT = 'png')

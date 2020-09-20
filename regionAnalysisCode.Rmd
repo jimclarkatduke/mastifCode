@@ -2520,7 +2520,7 @@ for( k in 1:length(dfScaled)){
     optSpec <- c(optSpec, nm)
   }
 }
-width <- width + .05
+width <- width + .1
 width[ width > 1 ] <- 1  # intensity scaled by posterior
 
 ii <- match( incSpec, names(dfScaled) )
@@ -2530,19 +2530,25 @@ xlab <- expression( frac('D', 'D'[m]) )
 ylab <- expression( frac('F', 'F'[m]) )
 
 
-par(mfrow=c(1,2), bty='n', mar=c(4,4,2,1), omi=c(.5,.8,0,.5))
+par(mfrow=c(1,2), bty='n', mar=c(4,4,4,1), omi=c(.5,.8,0,.5))
 
-plot( dfScaled[[io[1]]][1,], dfScaled[[io[1]]][2,], xlim=c(0,2), ylim = c(0, 1),
-      type='l', lwd=2, col = .getColor('black', width[io[1]]), xlab='',ylab = '' )
+plot( dfScaled[[io[1]]][1,], dfScaled[[io[1]]][2,], xlim=c(0,1.5), ylim = c(0, 1),
+      type='l', lwd = (1 + width[io[1]]^.5), 
+      col = .getColor('black', width[io[1]]), xlab='',ylab = '' )
 for(k in io){
-  lines(dfScaled[[k]][1,], dfScaled[[k]][2,], lwd=2, col = .getColor('black', width[k]))
+  lines(dfScaled[[k]][1,], dfScaled[[k]][2,], lwd = (1 + width[k]^.5), 
+        col = .getColor('black', width[k]))
 }
+.plotLabel('a) Region-spp with optimum', above=T, cex=.95)
 
 plot( dfScaled[[ii[1]]][1,], dfScaled[[ii[1]]][2,], xlim=c(0,1), ylim = c(0, 1),
-      type='l', lwd=2, col = .getColor('black', width[io[1]]), xlab='', ylab = '' )
+      type='l', lwd =  1 + width[ii[1]]^.5, 
+      col = .getColor('black', width[ii[1]]), xlab='', ylab = '' )
 for(k in ii){
-  lines(dfScaled[[k]][1,], dfScaled[[k]][2,], lwd=2, col = .getColor('black', width[k]))
+  lines(dfScaled[[k]][1,], dfScaled[[k]][2,], lwd = 1 + width[k]^.5,
+        col = .getColor('black', width[k]))
 }
+.plotLabel('b) Without optimum', above=T, cex=.95)
 mtext(xlab, side=1, outer  = TRUE, line=0)
 mtext(ylab, side=2, outer  = TRUE, line=0)
 

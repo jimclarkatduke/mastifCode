@@ -87,8 +87,8 @@ if(user == 'journe'){
   #fpath  <- "/home/journe/Documents/Server/fia/"
   Rcpp::sourceCpp('/home/journe/Documents/Server/makeMast/RcppFunctions/cppFns.cpp')
   source('/home/journe/Documents/Server/makeMast/RFunctions/mastifFunctions.R')
-  modelFile <- "/home/journe/Documents/Server/journepostdoc/mastifCode/modelTemperate.csv"
   source('/home/journe/Documents/Server/journepostdoc/mastifCode/mastifFunctions.R')
+  modelFile <- "/home/journe/Documents/Server/journepostdoc/mastifCode/modelTemperate.csv"
 
 }
 
@@ -96,10 +96,10 @@ path  <- paste(kpath, "makeMast/", sep="")
 path1 <- paste(dpath, 'treesActive/',sep='')
 mpath <- paste(path, 'climateBuild/mastFormat/', sep='')
 
-modelFile <- "modelTemperate.csv" #for Jim 
+#modelFile <- "modelTemperate.csv" #for Jim 
 
-#knitr::opts_chunk$set(echo = TRUE)
-#knitr::opts_knit$set(root.dir = "/home/journe/Documents/Server/makeMast/")
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/home/journe/Documents/Server/makeMast/")
 setwd(path)
 ```
 
@@ -190,6 +190,10 @@ UTM2latlon <- function( xy, zone = NULL, lon = NULL, southern = FALSE ){
   colnames(ll) <- c('lon','lat')
   ll
 }
+
+#val update : copy soil file from github to makemast folder 
+file.copy(from="/home/journe/Documents/Server/journepostdoc/mastifCode/soil_data.csv", to=getwd(), 
+          overwrite = TRUE)
 
 ```
 
@@ -2064,7 +2068,7 @@ fitting here:
 ng <- 1000
 ie <- 1
 
-for(t in ie:length(genFull)){
+for(t in 23:length(genFull)){
   
   PREDICT <- F   # include seed prediction
   

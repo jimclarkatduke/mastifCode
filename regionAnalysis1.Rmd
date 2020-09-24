@@ -1,0 +1,2657 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+
+## Regions
+
+The globe is divided up into regions.  The `character` variable `region` can have these values:
+
++ `"east"` - eastern North America (includes northern Canada and Alaska)
++ `"west"` - western North America
++ `"south"` - south and central America
++ `"africa"`
++ `"asia"`
++ `"europe"`
+
+Set up your paths, identified by `"user"`:
+
+```{r, eval = F}
+
+user <- 'unix'
+user <- 'rStudioServer'
+user <- 'mac2unix'
+user <- 'mac'
+```
+
+
+Paths and read code, add yours here:
+
+```{r, eval = F, echo=T}
+
+library(RANN)
+
+if(user == "chase"){
+  Rcpp::sourceCpp('/Volumes/clark/clark.unix/makeMast/RcppFunctions/cppFns.cpp')
+  source('/Volumes/clark/clark.unix/makeMast/RFunctions/mastifFunctions.r')
+  dpath <- "/Volumes/clark/clark.unix/allocationmodel/datafiles/"
+}
+if(user == 'mac2unix'){
+  kpath <- "/Volumes/research/clark/clark.unix/"
+  path <- "/Volumes/research/clark/clark.unix/makeMast/"
+  dpath  <- "/Volumes/research/clark/clark.unix/allocationmodel/datafiles/"
+  cpath  <- "compressedFiles/"
+  opath  <- "combinedSites/"
+  fpath  <- "/Volumes/research/clark/clark.unix/fia/"
+  Rcpp::sourceCpp('/Volumes/research/clark/clark.unix/makeMast/RcppFunctions/cppFns.cpp')
+  source('/Volumes/research/clark/clark.unix/makeMast/RFunctions/mastifFunctions.R')
+}
+if(user == 'unix'){
+  kpath <- "/nas/clark/clark.unix/"
+  path <- "/nas/clark/clark.unix/makeMast/"
+  dpath  <- "/nas/clark/clark.unix/allocationmodel/datafiles/"
+  cpath  <- "compressedFiles/"
+  opath  <- "combinedSites/"
+  fpath  <- "/nas/clark/clark.unix/fia/"
+  Rcpp::sourceCpp('/nas/clark/clark.unix/makeMast/RcppFunctions/cppFns.cpp')
+  source('/nas/clark/clark.unix/makeMast/RFunctions/mastifFunctions.R')
+}
+if(user == 'rStudioServer'){
+  kpath <- "/home/jimclark/"          # traitTable
+  path <- "/home/jimclark/makeMast/"
+  dpath  <- "/home/jimclark/allocationmodel/datafiles/"
+  cpath  <- "compressedFiles/"
+  opath  <- "combinedSites/"
+  fpath  <- "/home/jimclark/fia/"
+  Rcpp::sourceCpp('/home/jimclark/makeMast/RcppFunctions/cppFns.cpp')
+  source('/home/jimclark/makeMast/RFunctions/mastifFunctions.R')
+  setwd(path)
+}
+if(user == 'mac'){
+  kpath <- "/Users/jimclark/makeMastOnJimClark/"
+  dpath <- "/Users/jimclark/makeMastOnJimClark/allocationmodel/datafiles/"
+  cpath <- "compressedFiles/"
+  opath <- "combinedSites/"
+  Rcpp::sourceCpp('/Users/jimclark/makeMastOnJimClark/makeMast/RcppFunctions/cppFns.cpp')
+  source('/Users/jimclark/makeMastOnJimClark/makeMast/RFunctions/mastifFunctions.R')
+}
+path  <- paste(kpath, "makeMast/", sep="")
+path1 <- paste(dpath, 'treesActive/',sep='')
+mpath <- paste(path, 'climateBuild/mastFormat/', sep='')
+
+setwd(path)
+
+# names to omit from seed data:
+omitNames   <- c("abieFras_fruit","acerIMMA",
+                 "alnuRubr_cones","liriTuli_flower",
+                 "betuThun","betu_flower","betuUNKN_flower","caryIMMA",
+                 "cornIMMA","acerRubr_flower"," betuUNKN_flower",
+                 "nyssIMMA","oxydArbo_flower","oxydIMMA",
+                 "pinu_fruit","pinu_scales","pinuIMMA_fruit",
+                 "pinuEchi_fruit","pinuEchi_scale","pinuIMMA",
+                 "pinuPalu_fruit","pinuPalu_fruitIMMA","pinuPalu_scale","pinuPalu_scales",
+                 "pinus_scales","pinuStro_fruit",
+                 "pinuStro_fruit","pinuVirg_fruit",
+                 "pinuTaed_fruit","pinuTaed_scale","pinuTaed_scales",
+                 "pinuUNKN_scales",
+                 "piceRubeIMMA","querIMMA","querIMMATURE",
+                 "tiliAmer_flower","piceRube_fruit","piceRubr_fruit",
+                 "UiHs","unknown", "tsugCana_scales")
+
+combineSeeds <- read.csv('combineSeeds.csv',stringsAsFactors = F)
+combineSpecs <- read.csv('combineSpecs.csv',stringsAsFactors = F)
+
+tmp <- read.csv('mastPlotsAll.csv',stringsAsFactors=F)
+ww  <- which(is.finite(tmp$lon))
+plotData <- tmp[ww,]
+
+traitTable <- read.csv('../traitsByGroup/plantTraits.csv',stringsAsFactors=F)
+traitTable <- traitTable[nchar(traitTable$region) > 0,]
+
+
+UTM2latlon <- function( xy, zone = NULL, lon = NULL, southern = FALSE ){
+  
+  #xy has 2 columns or 3 columns, x, y, zone
+  
+  if(ncol(xy) == 2){
+    if( is.null(zone) & is.null(lon) )stop('zone or lon must be specified')
+    if( is.null(zone) )zone <- long2UTMZone(lon)
+    xy <- cbind(xy, zone)
+  }
+  
+  if(length(southern) == 1)southern <- rep(southern, nrow(xy))
+  
+  require(rgdal)
+  
+  colnames(xy) <- c("x","y","zone")
+  
+  zones <- sort(unique(xy[,'zone']))
+  
+  ll <- utm[drop=F,,1:2]
+  
+  for(j in zones){
+    
+    wj  <- which(xy[,'zone'] == j)
+    xyj <- as.data.frame( xy[drop=F, wj,] )
+    
+    ws <- which( southern[wj] )
+    wn <- which( !southern[wj] )
+    
+    if(length(ws) > 0){
+      xys <- as.data.frame( xyj[drop=F,ws,] )
+      
+      coordinates(xys) <- c("x", "y")
+      cstring <- paste('+proj=utm +zone=', j,' +ellps=WGS84 +south', sep='')
+      upoints <- suppressWarnings( SpatialPoints(coords=xys,
+                                                 proj4string=CRS(cstring)) )
+      
+      ut <- suppressWarnings( spTransform(upoints, 
+                                          CRS("+proj=longlat +ellps=WGS84 +south")) ) # ll to utm
+      ut <- as.data.frame(ut)
+      
+      ll[wj[ws],1:2] <- ut
+    }
+    if(length(wn) > 0){
+      xys <- as.data.frame( xyj[drop=F,wn,] )
+      coordinates(xys) <- c("x", "y")
+      cstring <- paste('+proj=utm +zone=', j,' +ellps=WGS84 +north', sep='')
+      
+      llpoints <- suppressWarnings( SpatialPoints(coords=xys,
+                                                  proj4string=CRS("+proj=longlat +ellps=WGS84 +north")) )
+      ut <- suppressWarnings( spTransform(llpoints, CRS(cstring)) ) # ll to utm
+      ut <- as.data.frame(ut)
+      ll[wj[ws],1:2] <- ut
+    }
+  }
+  colnames(ll) <- c('lon','lat')
+  ll
+}
+
+```
+
+
+## Updating files
+
+This section is needed when sites are added to the data set.
+
+### Download iNaturalist file
+
+This comes as a `.csv` file.  Put the unzipped file in `iNatObs/`  It is processed with `iNatObs/inat2treesOnly.R`. These fields are needed:
+
+"field.canopyclass", "field.cropcount", "field.cropcount2", "field.cropcount3", "field.cropfraction", "field.cropyear", "field.cropyear2", "field.cropyear3", "field.stemdiameter", "field.stemdiameter2", "field.stemdiameter3",  "user_login", "place_country_name", "place_admin1_name", "place_admin2_name", "scientific_name"
+                   
+A file `newTraits.csv` holds species that are not included in the trait file `../traitTable.csv`.  Add to `newTraits.csv`the `family` and `region` in the format `native_naturalized1_naturalized2`.  For example, a species endemic to eastern North America and naturalized in Europe has `east_europe`.
+
+The files generated by `inat2TreesOnly` are then placed in the directories by region.  It will automatically update the file `mastPlotsAll.csv`.  
+
+### Add ecoRegions
+
+Execute the file `../ecoRegionFiles/lonLat2ecoReg.R`.  This will add ecoRegions to `mastPlotsAll.csv`.
+
+### Update climate files
+
+Execute the file `climateBuild/makeClimateMast.r`.  This will add climate data for new locations in the data.
+
+### Update soil_data.csv on clark.unix
+
+This file is updated using tong's code in `get_soil.R`. 
+
+### Model input file
+
+File `makeMast/modelTemperate.csv` is an example file for a model. Columns are:
+
+`name` - name of the variable can be arbitrary, but it will have an ending added to it for climate variables that are site means (`Site`) or anomalies (`Anom`); `degDFys` will use `temp` to evaluate degree days based on monthly data; interactions include `:` between variable names, and the variable names must include the `Site` or `Anom` ending from the variable name.
+
+`variable` - climate variables match file names in `mastFormat/` files; soil variables match column names in `soil_data.csv`. 
+
+`fun` - `min`, `max`, `mean`, or `sum`
+
+`yearStart` - start year lag for anomalies is `-1` for the previous year, `0` for the current year
+
+`monthStart` - start month
+
+`yearEnd` - end year lag for anomalies; variables that wrap around winter are shown for the example `springTmin` row
+
+`monthEnd` - end month
+
+`site` - `1` indicates to include site means (omitted for species at few sites)
+
+`anom` - `1` indicates to include anomalies (omitted for species with short time series)
+
+`order` - `1` linear, `2` quadratic; if quadratic included, assumes convex (bell-shaped) effects
+
+`minRange` - minimum range for variable to be included
+
+`minSd` - minimum standard deviation for variable to be included
+
+`priorSign` - use if effects should be constrained to `positive` or `negative`
+
+
+
+
+SKIP: Make summary tables
+
+```{r, eval = F}
+
+source('mastNetworkSummary.R') # gets genFull
+
+```
+
+NOTE: rerun paths after climateBuild
+
+## write treesFormatted files for 'east' and 'west'
+
+NOTE: this section needed when seed files updated.
+
+This section finds seedPlots, species in treeFiles, adds `shade` (if needed) and writes to `treesFormatted/` for regions `"east"` and `"west"`.  This section does not combine `treesOnly`, but it checks `treesOnly` for species names.
+
+
+Combines sites based on treesFormatted for regions 'east' and 'west':
+
+```{r, eval = F}
+
+treeID      <- 'tree'
+yrCols      <- c('diam','canopy','cropCount','cropFraction')
+treeStart   <- 'censinyr'
+treeEnd     <- c('deathyr','censoryr')
+x           <- 'x'
+y           <- 'y'
+
+trapCols <- c("plot","trap","x","y")
+
+xytreeCols <- c('plot','tree','x','y')
+
+trapID <- 'trap'
+sfiles   <- list.files( paste0(dpath, 'seedsActive', sep='') )
+seedFile <- sfiles[ grep('active.csv',sfiles) ]
+locFile  <- sfiles[ grep('UTM',sfiles) ]
+sname    <- columnSplit(seedFile,'_active.csv')[,1]
+seedFile <- paste(dpath, 'seedsActive/', seedFile, sep='')
+locFile  <- paste(dpath, 'seedsActive/', locFile, sep='')
+
+#tname    <- list.files(paste0(dpath, 'trees', sep=''))
+tfiles   <- list.files(paste0(dpath, 'treesActive', sep=''))
+tname    <- columnSplit(tfiles,'_active.csv')[,1]
+#cname    <- columnSplit(tfiles,'_active.csv')[,1]
+
+treeFile <- tfiles[tname %in% sname] 
+treeFile <- paste(dpath, 'treesActive/',treeFile,sep='')
+
+trapFile = paste(dpath, 'seedTrapArea.txt', sep='')
+trapArea <- read.table(trapFile, header=T, stringsAsFactors = F)
+
+plots <- sname
+
+# all trap sites for files with multiple plots
+allp <- character(0)
+ie <- 1
+
+for(j in ie:length(seedFile)){
+  jp <- read.csv(seedFile[j], stringsAsFactors = F)
+  colnames(jp)[colnames(jp) == 'Plot'] <- 'plot'
+  colnames(jp)[colnames(jp) == 'Trap'] <- 'trap'
+  jp$plot <- .replaceString(jp$plot,' ','')
+  jx <- sort(unique( jp[,'plot']))
+  
+  short <- which(nchar(jx) < 2)
+  if(length(short) > 0){
+    ww <- which(nchar(jp$plot) < 2)
+    jx <- jx[ -short ]
+  }
+  print(seedFile[j])
+  print(jx)
+  allp <- c(allp, jx)
+}
+
+seedPlots <- allp     # plots with seed traps
+
+########### find genera and species
+
+specs <- character(0)
+
+err <- c("Celtlaev", "Carpcaro", "Caryglab", "Celtlaev",
+         "Cerccana", "cratUnkn", "diosUNKN", "Diosvirg", "DiosVirg",
+         "Francaro", "Queralba","Fagugran","Pinuvirg","PIRE",
+         "Pinus palustris",
+         "Querunkn", "jUNiVirg", "prUNSero","UlmuUNkn")
+
+numCols <- c("censinyr", "growinyr", "UTMx","UTMy")
+grpCols <- c('diam', 'canopy','shade','cropCount','cropFraction')
+
+
+
+checkTreeVars <- function(tfile, tdata, numCols, grpCols, CHECKEMPTY = F){
+  
+  # numCols - not with year reference
+  # grpCols - have year reference, e.g., diam2019
+  
+  cc <- numCols[ numCols %in% colnames(tdata) ]
+  if(length(cc) > 0){
+    ww <- which( !sapply(tdata[,cc], is.numeric) )
+    vv <- which( sapply(tdata[,cc], is.logical) )
+    if(length(ww) > 0){
+      print(tfile)
+      print(cc[ww])
+    }
+  }
+  
+  # these are empty columns
+  if(CHECKEMPTY){
+  for(m in 1:length(grpCols)){
+    wm <- grep(grpCols[m], colnames(tdata))
+    
+    if(length(wm) == 0)next
+    
+    vv <- which( sapply(tdata[,wm], is.logical) )
+    
+    if(length(vv) > 0){
+      print(tfile)
+      print( paste('this column appears to be empty, fix:',names(vv)) )
+      tdata <- tdata[,!colnames(tdata) %in% names(vv)]
+    }
+  }
+  
+  
+  # these are non-numeric columns
+  
+  for(m in 1:length(grpCols)){
+    wm <- grep(grpCols[m], colnames(tdata))
+    
+    if(length(wm) == 0)next
+    if( length(wm) == 1 & !is.numeric(tdata[,wm]) )ww <- wm
+    if( length(wm) > 1)ww <- which( !sapply(tdata[,wm], is.numeric) )
+    if(length(ww) == 0)next
+    
+    print(tfile)
+    print( paste('this column could be empty, remove:',names(ww)) )
+    tdata <- tdata[,!colnames(tdata) %in% names(ww)]
+  }
+  }
+  
+  tdata
+}
+    
+  
+# species in treeFile
+         
+for(j in 1:length(treeFile)){
+  
+  kp <- read.csv(treeFile[j], stringsAsFactors = F)
+  
+  dcols  <- which( startsWith( colnames(kp), 'diam' ) )
+  drange <- range(kp[,dcols], na.rm = T )
+  if(drange[2] > 100){
+    print(j)
+    print(treeFile[j])
+    print( drange )
+  }
+  
+  ks <- unique(kp$species)
+  specs <- c(specs, ks)
+  
+  we <- which(ks %in% err)
+  if(length(we) > 0){
+    print(treeFile[j])
+    print(ks[we])
+  }
+  
+  ww <- which(nchar(specs) < 5)
+  if(length(ww) > 0)stop()
+}
+
+# species in treesOnly
+
+lj <- list.files('treesOnly', full.names = T, recursive = T)
+lj <- lj[grep('.csv',lj)]
+
+for(j in 1:length(lj)){
+  
+  tmp <- read.csv(lj[j], stringsAsFactors = F)
+  
+  tmp <- checkTreeVars(lj[j], tmp, numCols, grpCols)
+  sp  <- as.character(tmp$species)
+  ks  <- unique(sp)
+  specs <- c(specs, ks)
+  
+  we <- which(ks %in% err)
+  if(length(we) > 0){
+    print(lj[j])
+    print(ks[we])
+  }
+  
+  specs <- c(specs, unique(sp))
+  
+  specs[specs == 'PIRE'] <- 'pinuResi'
+  
+  ww <- which(nchar(specs) < 5)
+  if(length(ww) > 0)stop()
+}
+
+plotData <- read.csv('mastifPlotData.csv',stringsAsFactors=F)
+
+plots <- allp
+#plots <- plots[plots %in% plotData$plot]
+sites <- columnSplit(plots,'_')[,1]
+regs <- plotData$region[ match(plots, plotData$plot) ]
+
+specs <- sort(unique(specs))
+#specs <- specs[ nchar(specs)  > 5 ]
+
+specs <- combineSpecies(specs, specNames, combineSpecs)$specNames
+
+# get genFull
+
+traits <- read.csv( paste(kpath, 
+                          'traitsByGroup/plantTraits.csv', sep=''),
+                    stringsAsFactors = F)
+
+mm <- match(specs, traits$code4)
+wf <- which(is.finite(mm))
+
+gen <- traits$genus[mm[wf]]
+names(specs)[wf] <- gen
+
+genFull <- sort( unique( gen ) )
+genFull <- lowerFirstLetter(genFull)
+
+
+ww <- which(!sname %in% trapArea$plot)
+if(length(ww) > 0)stop( paste( 'enter trap area for',sname[ww],'in file',trapFile ) )
+
+
+
+####################shade calibration, write treesFormatted
+
+
+source( paste(dpath, 'treesActive/fitCanopyCalibrate.R', sep='') )
+
+formatTreeFiles <- .replaceString(treeFile, 'treesActive','treesFormatted')
+
+formFiles <- character(0)
+
+plotm <- columnSplit(treeFile, 'treesActive/')[,2]
+plotm <- columnSplit(plotm, '_active')[,1]
+
+for(j in 1:length(treeFile)){
+  
+  tfile <- treeFile[j]
+  ffile <- formatTreeFiles[j]
+  
+  if(length(tfile) == 0){
+    tfile <- treeFile[grep(sites[j],treeFile)]
+  }
+  
+  dcols  <- which( startsWith( colnames(kp), 'diam' ) )
+  drange <- range(kp[,dcols], na.rm = T )
+  if(drange[2] > 100){
+    print(j)
+    print(treeFile[j])
+    print( drange )
+  }
+  
+  if(length(tfile) == 0)next
+  
+  TF <- file.exists(tfile)
+  if(!TF)next
+  
+  plot <- plotm[j]
+  neon <- grep('NEON',tfile)
+  # if(length(neon) > 0){
+  
+  tmp <- read.csv(tfile, stringsAsFactors = F)
+  
+  tmp <- checkTreeVars(tfile, tmp, numCols, grpCols)
+  
+  
+  plots <- sort(unique(tmp$plot))
+  site <- columnSplit(plots,'_')
+  #  }
+  qcfile <- ffile
+  
+  for(m in 1:length(plots)){
+    
+    if(length(neon) > 0){
+      ff    <- paste(site[m,1],'_NEON',sep='')
+      qcfile <- .replaceString(ffile,ff,plots[m])
+    }
+    
+    tmp    <- .treeFormat( tfile, changeNames = combineSpecs,
+                           plot = plots[m], years = NULL,
+                           yrCols = yrCols  )
+    yrDat  <- tmp$yrDat
+    xyt    <- tmp$xytree
+    
+    
+    if(length(yrDat) == 0)next
+  
+    plotYr <- columnPaste(yrDat$plot,yrDat$year)
+    pyr <- sort(unique(plotYr))
+    cvec <- rep(NA, nrow(yrDat))
+    
+    for(i in 1:length(pyr)){
+      
+    #  print(pyr[i])
+      
+      wi <- which(plotYr == pyr[i])
+      
+      ti <- yrDat[wi,]
+      wf <- which( is.finite(ti$diam) )
+      if(length(wf) == 0){
+        print( paste( 'no diam for plot', pyr[i] ) )
+        next
+      }
+      
+      can <- predCanopy(ti, ppath = path1)
+      ci <- can$shade
+      cvec[wi] <- ci
+    }
+    yrDat$shade <- yrDat$canopy <- cvec
+    
+    print( qcfile )
+    
+    write.csv(yrDat, file = qcfile)
+  }
+}
+```
+       
+     
+# OMIT: estimate shade for other regions
+
+
+```{r}
+
+
+source( paste(dpath, 'treesActive/fitCanopyCalibrate.R', sep='') )
+
+regs <- c('africa','asia','europe','south')
+
+lf <- list.files( paste(path, 'compressedFiles',sep=''), recursive = T,
+                  full.names=T)
+lk <- list.files( paste(path, 'compressedFiles',sep=''), recursive = T)
+
+for(j in 1:length(regs)){
+  
+  lt <- lf[ grep( regs[j], lf ) ]
+  lv <- lk[ grep( regs[j], lk ) ]
+  
+  for(k in 1:length(lt)){
+    
+    print(lt[k])
+    
+    load(lt[k])
+    
+    if( !'shade' %in% colnames(treeData) ){
+      treeData$shade <- NA
+    }
+    wna <- which(is.na(treeData$shade))
+    if(length(wna) == 0)next
+    
+    xyID <- columnPaste(xytree$plot, xytree$tree)
+    trID <- columnPaste(treeData$plot, treeData$tree)
+    
+    plotYr <- columnPaste(treeData$plot,treeData$year)
+    pyr <- sort(unique(plotYr))
+    cvec <- rep(NA, nrow(treeData))
+    
+    for(i in 1:length(pyr)){
+      
+      print(pyr[i])
+      
+      wi <- which(plotYr == pyr[i])
+      
+      ti <- treeData[wi,]
+      wf <- which( is.finite(ti$diam) )
+      if(length(wf) == 0){
+        print( paste( 'no diam for plot', pyr[i] ) )
+        next
+      }
+      
+      treeID <- columnPaste(ti$plot, ti$tree)
+      mm <- match(treeID, xyID)
+
+      ti$UTMx <- xytree[mm, 'x']
+      ti$UTMy <- xytree[mm, 'y']
+      
+      can <- predCanopy(ti, ppath = path1)
+      ci <- can$shade
+      treeData[wi,'shade'] <- ci
+    }
+    
+    # smooth eratic values
+    tss <- treeData$shade
+    tmu <- tapply( tss, trID, mean, na.rm=T)
+    mm  <- match( trID, names(tmu) )
+    tmean <- tmu[mm]
+    zz  <- abs( tss - tmean )
+    zz[ !is.finite(zz) ] <- 0
+    tss[ zz > 1 ] <- round(tmean)[zz > 1]
+    
+    treeData$shade <- tss
+    rownames(treeData) <- NULL
+    
+    save(treeData, xytree, seedData, xytrap, file = lt[k])
+  }
+    
+  }
+```
+       
+Writes compressed files from "east" and "west" to `compressedFiles/REGION/clarkLab/GENUS.Rdata`:
+
+```{r, eval = F}
+ 
+cleanSave <- function( vlist, genus, region){
+  
+  for(k in 1:length(vlist)){
+    assign( names(vlist)[k], vlist[[k]] )
+  }
+  
+  print(region)
+  
+  snames <- seedNames[ seedNames %in% colnames(seedData) ]
+  
+  scount <- as.matrix(seedData[,snames, drop=F])
+  
+  ws <- which( colSums(scount) == 0 )
+  if(length(ws) > 0){
+    seedData <- seedData[,!colnames(seedData) %in% names(ws), drop=F]
+    seedNames <- seedNames[!seedNames %in% names(ws)]
+  }
+  
+  seedData <- data.frame(seedcols, seedData)
+  specNames <- sort(unique( as.character(treeData$species) ) )
+  
+  xytree$treeID <- columnPaste(xytree$plot, xytree$tree)
+  
+  xytree   <- xytree[xytree$treeID %in% treeData$treeID,]
+  
+  repMu <- pnorm( (treeData$diam - 30)/15)
+  repSd <- sqrt( repMu*(1 - repMu) )
+  
+  treeData$repMu <- signif(repMu, 3)
+  treeData$repSd <- signif(repSd, 3)
+  
+  snames <- snames[ snames %in% colnames(seedData) ]
+  
+  seedData <- seedData[,c("plot","trapID","trap","year","active","area",snames)]
+  
+  treeData[,'canopy'] <- round( treeData[,'canopy'], 1 )
+  
+  sfile <- paste(path, cpath, region, '/clarkLab/', genus,'.Rdata',sep='')
+  print(sfile)
+  
+  save(treeData, seedData, specNames, seedNames, xytree, xytrap,  
+       file = sfile )
+}
+
+formatTreeFiles <- list.files(paste0(dpath, 'treesFormatted', sep=''), full.names=T)
+
+# find NEON plots
+neonSites <- grep('NEON',locFile) 
+neonPlots <- character(0)
+
+for(j in neonSites){
+  tj <- sort( unique( read.csv(locFile[j], stringsAsFactors = F)$plot ) )
+  neonPlots <- c(neonPlots, tj)
+}
+
+genCode <- substr(genFull, 1, 4)
+
+specByPlot <- typeByPlot <- numeric(0)
+
+
+for(i in 1:length(genFull)){
+  
+  gcode <- genFull[i]
+  
+  seedData <- xytrap <- numeric(0)
+  plotAll <- seedNames <- character(0)
+  
+  treeDataE <- xytreeE <- seedDataE <- xytrapE <- numeric(0)
+  seedcolsE <- seedNamesE <-  character(0)
+  treeDataW <- xytreeW <- seedDataW <- xytrapW <- numeric(0)
+  seedcolsW <- seedNamesW <-character(0)
+  
+  treeCols <- c("plot","tree",'treeID',"species","year","repr","diam","canopy",
+              "shade","cropCount", "cropFraction","cropFractionSd")
+  if(gcode == 'pinu')treeCols <- c(treeCols,'serotinous')
+  
+  print(gcode)
+  
+  plots <- seedPlots   # check plots that have seed traps
+  
+  for(j in 1:length(plots)){
+    
+    tfile <- formatTreeFiles[grep(plots[j],formatTreeFiles)]
+    sfile <- seedFile[grep(plots[j],seedFile)]
+    lfile <- locFile[grep(plots[j],locFile)]
+    
+  #  if(length(tfile) == 0)tfile <- formatedAllNEON[grep(sites[j],formatTreeFiles)]
+    if(length(sfile) == 0)sfile <- seedFile[grep(sites[j],seedFile)]
+    if(length(lfile) == 0)lfile <- locFile[grep(sites[j],locFile)]
+    
+    if(length(sfile) > 1){
+      if( plots[j] %in% neonPlots )sfile <- sfile[ grep('NEON', sfile) ]
+    }
+    if(length(lfile) > 1){
+      if( plots[j] %in% neonPlots )lfile <- lfile[ grep('NEON', lfile) ]
+    }
+    
+    if(length(tfile) == 0 | length(sfile) == 0)next
+    
+    TF <- file.exists(tfile)
+    if(!TF)next
+    
+    yrDat <- read.csv(tfile, stringsAsFactors = F)
+    yrDat <- checkTreeVars(tfile, yrDat, numCols, grpCols, CHECKEMPTY=F)
+    
+    species <- combineSpecies(yrDat$species, specNames = NULL, combineSpecs)$specNames
+    
+    genj <- traitTable$genus[ match(species,traitTable$code4) ]
+    #   genj <- substr( lowerFirstLetter(genj), 1, 4)
+    genj <- lowerFirstLetter(genj)
+    
+    skeep <- species[genj %in% genFull[i]]
+    
+    wy <- which(yrDat$species %in% skeep & yrDat$plot == plots[j])
+    if(length(wy) == 0)next
+    
+    xyt   <- yrDat[wy,c('plot','treeID','tree','species','UTMx','UTMy')]
+    xyt   <- xyt[!duplicated(xyt$treeID),]
+    yrDat <- yrDat[wy,!colnames(yrDat) %in% c("x","y","UTMx","UTMy")]
+    
+    if(length(yrDat) == 0)next
+    
+    
+    dcols  <- which( startsWith( colnames(yrDat), 'diam' ) )
+    drange <- range(yrDat[,dcols], na.rm = T )
+    
+    dmax <- tapply( as.vector(yrDat[,dcols]), rep(yrDat$species, length(dcols)), 
+                    max, na.rm=T)
+    if( max(dmax) > 70){
+      print(j)
+      print(plots[j])
+      print( dmax )
+    }
+    if(max(dmax) > 400)stop()
+    
+    if(gcode == 'pinus' & !'serotinous' %in% colnames(yrDat))
+      yrDat$serotinuous <- 0
+    
+    spp <- sort(unique(as.character(yrDat$species)))
+    
+    
+    tmp <- .seedFormat(sfile, lfile, trapFile = trapFile, specNames = spp,
+                       genusName = gcode, omitNames = omitNames,
+                       plot = plots[j], trapID = trapID,
+                       monthYr = 7)        # NEON plots have area = .5
+    
+    if(length(tmp) == 0)next
+    
+    xyseed   <- tmp$xy
+    seedj    <- tmp$counts
+    
+    xyseed <- xyseed[xyseed$plot == plots[j],]
+    seedj  <- seedj[seedj$plot == plots[j],]
+    
+    
+    wcol     <- sapply(seedj, is.numeric)
+    sdata    <- as.matrix( tmp$counts[,which(wcol), drop=F] )
+    
+    xyt   <- xyt[xyt$treeID %in% yrDat$treeID,]
+    
+    wg <- which(!treeCols %in% colnames(yrDat))
+    if(length(wg) > 0){
+      mmat <- matrix(NA, nrow(yrDat),length(wg))
+      colnames(mmat) <- treeCols[wg]
+      yrDat <- cbind(yrDat, mmat)
+    }
+    
+    if(!'x' %in% colnames(xyt))xyt$x <- xyt$UTMx
+    if(!'y' %in% colnames(xyt))xyt$y <- xyt$UTMy
+    
+    regj <- plotData$region[ match(plots[j], plotData$plot) ]
+    
+    
+    if(regj == 'east'){
+      seedNamesE <- sort(unique(c(seedNamesE, tmp$seedNames)))
+      seedDataE  <- .appendMatrix(seedDataE, sdata, fill=0)
+      seedcolsE  <- rbind(seedcolsE, seedj[,which(!wcol)])
+      treeDataE  <- rbind(treeDataE, yrDat[,treeCols])
+      xytreeE    <- rbind(xytreeE, xyt[,xytreeCols])
+      xytrapE    <- rbind( xytrapE, xyseed[,trapCols] ) 
+    }else{
+      seedNamesW <- sort(unique(c(seedNamesW, tmp$seedNames)))
+      seedDataW  <- .appendMatrix(seedDataW, sdata, fill=0)
+      seedcolsW  <- rbind(seedcolsW, seedj[,which(!wcol)])
+      treeDataW  <- rbind(treeDataW, yrDat[,treeCols])
+      xytreeW    <- rbind(xytreeW, xyt[,xytreeCols])
+      xytrapW    <- rbind( xytrapW, xyseed[,trapCols] ) 
+    }
+  } ############ end plot loop
+  
+  
+  if(length(seedDataE) > 0){
+    
+    vlist <- list( seedData = seedDataE,  seedNames = seedNamesE, 
+                   treeData = treeDataE,
+                   seedcols = seedcolsE, xytree = xytreeE, xytrap = xytrapE )
+    cleanSave( vlist, genFull[i], region = 'east')
+  }
+  if(length(seedDataW) > 0){
+    vlist <- list( seedData = seedDataW,  seedNames = seedNamesW, 
+                   treeData = treeDataW,
+                   seedcols = seedcolsW, xytree = xytreeW, xytrap = xytrapW )
+    cleanSave( vlist, genFull[i], region = 'west')
+  }
+}
+
+```
+        
+OMIT THIS:  
+```{r plotArea, eval = F}          
+plotArea <- read.table( paste(dpath, "treePlotArea.txt", sep=''),
+                        header=T)
+plotArea <- plotArea[plots,]
+```
+    
+    
+## build combined sites for species 
+
+by region from compressed files and treesOnly
+
+```{r, eval = F}
+
+changeCode <- function(toCode, specVec, 
+                       tfile = '../traitsByGroup/plantTraits.csv'){
+  
+  # toCode is 'code4', 'code6', or 'code7'
+  
+  traitTable <- read.csv(tfile, stringsAsFactors=F)
+  
+  mm  <- match( specVec, traitTable$code4 )
+  kk  <- match( specVec, traitTable$code6 )
+  mm[ is.na(mm) & !is.na(kk) ] <- kk[ is.na(mm) & !is.na(kk) ]
+  wna <- which(is.finite(mm))
+  specVec[wna] <- traitTable[mm[wna],toCode]
+  specVec
+  
+}
+
+tcols <- c('plot','tree','species','year','repr','diam')
+scols <- c('plot','trap','year','area','active')
+xy1n  <- c('plot','tree','x','y')
+xy2n  <- c('plot','trap','x','y')
+
+pcols <- c("plot","tree","species","year","repr","diam","repMu","repSd","shade",
+             "cropCount","cropFraction","cropFractionSd",
+           "cropMin", "cropMax", "fecMin", "fecMax")
+omitTypes <- c('_cones','_emptyseeds','_fruit','_scales')
+
+traitTable <- read.csv('../traitsByGroup/plantTraits.csv', stringsAsFactors = F)
+
+regions <- traitTable$region
+regs    <- unique( unlist(strsplit(regions,'_') ) )
+regs    <- regs[ !is.na(regs) ]
+
+regsFrom <- regsTo <- regs
+
+# JUST FOR NOW:
+
+regsTo <- c('east')
+regsFrom <- c('west','east','europe')
+
+
+regsTo <- c('south')
+regsFrom <- c('south')
+
+nregs   <- length(regs)
+
+regionList <- numeric(0)
+
+
+# this just builds species list by region in regsTo
+
+for(j in 1:length(regsTo)){
+  
+  code <- 'code4'
+  gee  <- 4
+  if(regsTo[j] %in% 'south'){
+    code <- 'code7'
+    gee  <- 7
+  }
+  
+  # genera for unknowns in seedData
+  fff <- unique(traitTable$genus)
+  
+  traitUNKN <- lowerFirstLetter( substr( fff, 1, gee ) )
+  traitUNKN <- paste( traitUNKN, 'UNKN', sep='' )
+  traitUNKN <- data.frame( traitUNKN, genus = fff ,
+                           stringsAsFactors = F)
+  colnames(traitUNKN)[1] <- code
+  traitsAll <- rbind(traitUNKN, traitTable[,c(code, 'genus')])
+  traitsAll$genus <- lowerFirstLetter( traitsAll$genus )
+  
+  
+  sp <- gen <- character(0)
+  jg <- grep(regsTo[j], traitTable$region)
+  
+  native <- traitTable[ jg, code ]
+
+  ee <- stringi::stri_locate_first_regex(native, "[A-Z]")
+  genu <- paste( substr(native, 1, ee[,1] - 1), 'UNKN', sep='')
+  native <- sort(unique(native, genu))
+  
+  lf <- list.files( paste('compressedFiles',regsTo[j],sep='/'), 
+                    recursive=T, full.names = T )
+  nf <- length(lf)
+  
+  if(nf > 0){
+    for(k in 1:nf){
+      
+      load(lf[k])
+      sk <- sort( as.character(unique(treeData$species)) )
+      sp <- c(sp, sk)
+    }
+  }
+  
+  lf <- list.files( paste('treesOnly',regsTo[j],sep='/'), 
+                    recursive=T, full.names = T )
+  lf <- lf[ grep('.csv',lf) ]
+  
+  if(length(lf) > 0){
+    nf <- length(lf)
+    for(k in 1:nf){
+      
+      tmp <- read.csv(lf[k], stringsAsFactors = F)
+      
+      if( regsTo[j] %in% 'south' ){
+        
+        tmp$species   <- changeCode(toCode = 'code7', specVec = tmp$species)
+        sk <- sort(unique(tmp$species))
+      }else{
+      
+        mm <-  match( tmp$species, traitTable[,code] )
+        sk <- sort( unique( traitTable[ mm, code ] ) )
+      }
+      sk <- sk[sk %in% native]
+      sp <- c(sp, sk)
+    }
+  }
+  sp  <- sort(unique(sp))
+  mm  <- match(sp,  traitTable[,code])
+  gen <- c(gen, traitTable$genus[mm])
+  attr(sp, 'genus') <- lowerFirstLetter(gen)
+  regionList <- append(regionList, list(sp))
+}
+ 
+names(regionList) <- regsTo
+
+wm <- lapply(regionList, length)
+regionList <- regionList[wm > 0]
+nregs <- length(regionList)
+regs  <- names(regionList)
+
+ie <- 1
+
+for(j in 1:length(regsTo)){   ############# region to analyze
+  
+  specs  <- regionList[[j]]
+  genera <- sort( unique(attr(specs,'genus')) )
+  
+  for(g in ie:length(genera)){
+    
+    genus <- genera[g]
+    print(genus)
+    
+    specTo <- specs[ attr(specs,'genus') == genus ]
+    wu     <- grep('UNKN', specTo)                    # currently removing UNKN trees
+   if(length(wu) > 0)specTo <- specTo[-wu]   
+    if(length(specTo) == 0)next
+    
+    tdata <- sdata <- seedData <- xytree <- xytrap <- 
+      seedNames <- xy1 <- xy2 <- numeric(0)
+    seed <- spec <- character(0)
+    
+    for(m in 1:length(regsFrom)){  # species from region j observed in region m
+      
+      gee <- 4
+      if(code == 'code7')gee <- 7
+      uname <- lowerFirstLetter( substr(genus, 1, gee) )
+      uname <- paste(uname, 'UNKN', sep='')
+      
+      fj   <- list.files( paste('compressedFiles/',regsFrom[m],sep=''),full.names=T, 
+                          recursive = T)
+      fileSeed <- fj[grep('.Rdata',fj,ignore.case=T)]
+      nf <- length(fileSeed)
+      
+      mcols <- c('repMu','repSd','canopy','shade','cropCount','cropFraction',
+                 'cropFractionSd')
+      if(genus == 'pinus')mcols <- c(mcols, 'serotinous')
+      
+      if( length(fileSeed) > 0 ){  # check all files in region m
+        
+        print( paste('to',regsTo[j],'from', regsFrom[m]) )
+        
+        for(k in 1:nf){  # files that have seed data
+          
+          load(fileSeed[k])
+          
+          
+          if(!'active' %in% colnames(seedData))seedData$active <- 1
+          
+          xytree$plot   <- as.character(xytree$plot)
+          xytrap$plot   <- as.character(xytrap$plot)
+          treeData$plot <- as.character(treeData$plot)
+          xytree$tree   <- as.character(xytree$tree)
+          seedData$plot <- as.character(seedData$plot)
+          treeData$species <- as.character(treeData$species)
+          
+          mm <-  match( treeData$species, traitsAll[,code])
+          treeData$genus   <- traitsAll$genus[ mm ]
+          treeData$genus   <- lowerFirstLetter( treeData$genus )
+          
+          
+          # a species from the regional flora j in genus g
+          ws <- which( treeData$genus == genus & treeData$species %in% specs )
+          
+          if(length(ws) == 0)next
+          
+          specNames <- sort( unique(treeData$species[ws]) )
+          treeData  <- treeData[ws,]
+          
+          
+          if( length(grep('UNDE_A', treeData$plot)) > 0 &
+              length(grep('betu', treeData$species)) > 0){
+            
+            print( fileSeed[k] )
+            print(table(treeData$plot, treeData$species)['UNDE_A',] )
+          }
+                  
+          
+          
+          wc   <- match(colnames(seedData), traitsAll[,code])
+          sgen <- which( traitsAll$genus[wc] == genus )
+          snames <- traitsAll[wc[sgen],code]
+          if(length(sgen) == 0){
+            seedData <- cbind( seedData, 0 )
+            colnames(seedData)[ncol(seedData)] <- uname
+            snames <- uname
+          }
+          
+          # censored columns in seedData
+          snames <- c(snames, paste(snames, '_min', sep=''), paste(snames, '_max',sep='') )
+          snames <- snames[ snames %in% colnames(seedData) ]
+          
+          # if trees but no seeds of a genus, then seedData holds zeros
+          
+          tplots <- sort(unique(treeData$plot))
+          seedData <- seedData[seedData$plot %in% tplots, c(scols, snames) ]
+          
+          # omit types and names
+          for(mm in 1:length(omitTypes)){
+            ws <- grep(omitTypes[mm], seedNames)
+            if(length(ws) > 0)seedNames <- seedNames[-ws]
+            ws <- grep(omitTypes[mm], colnames(seedData))
+            if(length(ws) > 0)seedData <- seedData[,-ws]
+          }
+          
+          wm <- which(colnames(seedData) %in% omitNames)
+          if(length(wm) > 0)seedData <- seedData[,-wm]
+          
+          
+          # censored columns needed from min/max columns in new seedData
+          minmax <- unique( c(grep('_min', colnames(seedData)), 
+                              grep('_max', colnames(seedData))) ) # min/max cols
+          if(length(minmax) > 0){
+            newSeeds <- .replaceString(colnames(seedData)[minmax],'_min','')
+            newSeeds <- .replaceString(newSeeds,'_max','')
+            newSeeds <- sort( unique(newSeeds) )
+            newSeeds <- newSeeds[!newSeeds %in% colnames(seedData)]
+            if(length(newSeeds) > 0){
+              snew <- matrix(NA,nrow(seedData),length(newSeeds))
+              colnames(snew) <- newSeeds
+              seedData <- cbind(seedData, snew)
+            }
+          }
+          
+          
+          
+          if(genus == 'pinus' & !'serotinous' %in% colnames(treeData))
+            treeData$serotinous <- 0
+          
+          if('cropFraction' %in% colnames(treeData)){
+            if(!'cropFractionSd' %in% colnames(treeData)){
+              treeData$cropFractionSd <- NA
+              wm <- which(is.finite(treeData$cropFraction))
+              fs <- .5*dbeta(treeData$cropFraction[wm], .1,2) + 1e-3
+              treeData$cropFractionSd[wm] <- fs
+            }
+          }
+          
+          specNames <- sort(unique(treeData$species))
+          
+          treeID <- columnPaste(treeData$plot, treeData$tree)
+          xyID   <- columnPaste(xytree$plot, xytree$tree)
+          xytree <- xytree[xyID %in% treeID,]
+          xytrap <- xytrap[ xytrap$plot %in% treeData$plot,]
+          
+          tmp <- combineSeedNames(seedData, snames, 
+                                  rbind(combineSeeds,combineSpecs))
+          seedData  <- tmp$seedData
+          seedNames <- tmp$seedNames
+          
+          
+          tmp <- combineSpecies(treeData$species, specNames, combineSpecs)
+          treeData$species <- tmp$species
+          specNames     <- tmp$specNames
+          
+          wd <- which(treeData$diam <= 0)
+          if(length(wd) > 0)treeData$diam[wd] <- NA
+          
+          treeID <- columnPaste(treeData$plot,treeData$tree)
+          
+          # interpolate missing diameters
+          ii <- as.character(treeID)
+          jj <- treeData$year
+          jtimes <- sort(unique(jj))
+          i  <- unique(ii)
+          
+          icol <- match(ii,i)
+          jcol <- match(jj,jtimes)
+          ijFull <- matrix(0,length(i),length(jtimes))
+          ijFull[ cbind(icol,jcol) ] <- treeData$diam
+          
+          maxVal <- max(treeData$diam, na.rm=T) + 1
+          
+          jmat <- ijFull*0
+          
+          if(ncol(jmat) > 1){
+            for(i in 1:nrow(ijFull)){
+              rr <- range(ijFull[i,], na.rm=T)
+              rr[1] <- rr[1] - .3
+              rr[2] <- rr[2] + .3
+              jmat[i,] <- .interp(ijFull[i,],INCREASING=T,
+                                  minVal=rr[1],maxVal=rr[2],defaultValue=NULL)
+            }
+          }
+          jmat[jmat < 0] <- 0
+          
+          wf <- which(is.finite(ijFull))
+          jmat[wf] <- ijFull[wf]
+          jmat <- round(jmat,2)
+          
+          treeData$diam <- jmat[ cbind(icol,jcol) ]
+          
+          treeData$tree <- as.character(treeData$tree)
+          treeData$plot <- as.character(treeData$plot)
+          
+          if(!'repr' %in% colnames(treeData))treeData$repr <- NA
+          if(!'repMu' %in% colnames(treeData))treeData$repMu <- NA
+          if(!'repSd' %in% colnames(treeData))treeData$repSd <- NA
+          
+          cc <- which(!pcols %in% colnames(treeData))
+          if(length(cc) > 0){
+            for(p in cc){
+              pc <- matrix(NA, nrow(treeData), 1)
+              colnames(pc) <- pcols[p]
+              treeData <- cbind(treeData, pc)
+            }
+          }
+          
+          tdata <- rbind(tdata,treeData[,pcols])
+          
+          # counts now in sdata
+          countNow <- seedData[,!colnames(seedData) %in% scols,drop=F]
+          if(length(sdata) > 0)countNow <- sdata[,!colnames(sdata) %in% scols, drop=F]
+          
+          # NA means not counted, a censored value has seedData$active < 1
+          
+          ss    <- seedData[,scols, drop=F]
+          
+          seedc <- grep(paste("^", substr(genus, 1, gee), sep=''),
+                        colnames(seedData))
+          seed  <- c(seed,colnames(seedData)[seedc])
+          spec  <- c(spec,unique(as.character(tdata$species)))
+          mm    <- seedData[,seedc,drop=F]
+          
+          # NAs in rows with seedData$active == 1 must be zero
+          wna <- which(is.na(mm), arr.ind=T)
+          wna <- wna[ drop=F, seedData$active[wna[,1]] < 1, ]
+          if(length(wna) > 1)mm[wna] <- 0
+          
+          #  ss <- cbind(ss,mm)
+          
+          #new species as NA if already a min/max column, otherwise 0
+          
+          # COLUMNS NEEDED FOR mm
+          
+          # seedNames columns needed from min/max columns in new mm
+          minmax <- unique( c(grep('_min', colnames(mm)), 
+                              grep('_max', colnames(mm))) ) # min/max cols
+          if(length(minmax) > 0){
+            newSeeds <- .replaceString(colnames(mm)[minmax],'_min','')
+            newSeeds <- .replaceString(newSeeds,'_max','')
+            newSeeds <- sort( unique(newSeeds) )
+            newSeeds <- newSeeds[!newSeeds %in% colnames(mm)]
+            if(length(newSeeds) > 0){
+              snew <- matrix(NA,nrow(mm),length(newSeeds))
+              colnames(snew) <- newSeeds
+              mm <- cbind(snew, mm)
+            }
+          }
+          
+          # seedNames
+          ww <- which(!specNames %in% colnames(mm))
+          if(length(ww) > 0){
+            snew <- matrix(0, nrow(mm), length(ww))
+            colnames(snew) <- specNames[ww]
+            mm <- cbind(mm, snew)
+          }
+          
+          if(length(sdata) > 0){
+            
+            # COLUMNS NEEDED FOR mm
+            ww <- which( !colnames(countNow) %in% colnames(mm) )
+            if(length(ww) > 0){
+              snew <- matrix(0, nrow(mm), length(ww) )
+              colnames(snew) <- colnames(countNow)[ww]
+              mm <- cbind(mm, snew)
+            }
+            
+            # COLUMNS NEEDED FOR countNow
+            ww <- which( !colnames(mm) %in% colnames(countNow)  )
+            if(length(ww) > 0){
+              snew <- matrix(0, nrow(countNow), length(ww) )
+              colnames(snew) <- colnames(mm)[ww]
+              countNow <- cbind(countNow, snew)
+            }
+            sdata <- cbind(sdata[,scols], countNow)
+          }
+          
+          ss <- cbind(ss, mm)
+          
+          sdata <- rbind(sdata,ss)
+          
+          xy1 <- rbind(xy1,xytree[,xy1n])
+          xy2 <- rbind(xy2,xytrap[,xy2n])
+          
+        } ######################## end seed folder loop
+      }
+      
+      # treesOnly
+      fj   <- list.files( paste('treesOnly/',regsFrom[m],sep=''), 
+                          full.names=T, recursive = T)
+      fileTree <- fj[grep('.csv',fj, ignore.case=T)]
+      nf <- length(fileTree)
+      
+      treesOnly <- numeric(0)
+      
+      if(nf > 0){
+        
+        for(k in 1:nf){
+          
+          tfk <- read.csv(fileTree[k],stringsAsFactors=F)
+          
+          tfk$genus <- traitTable$genus[ match( tfk$species, traitTable$code4 ) ]
+          tfk$genus <- lowerFirstLetter( tfk$genus )
+          
+          ws <- which( tfk$genus == genus & tfk$species %in% specTo)
+          if('lon' %in% colnames(tfk)){
+            wt <- which( is.finite(tfk$lon) & is.finite(tfk$lat))
+          }else{
+            wt <- which(is.finite(tfk$UTMx) & is.finite(tfk$UTMy)) 
+          }
+          ws <- ws[ws %in% wt]
+          
+          if(length(ws) == 0)next
+          tfk <- tfk[ws,,drop=F]
+          
+          if(genus == 'pinus' & !'serotinous' %in% colnames(tfk))tfk$serotinous <- 0
+          
+          if('canopy' %in% colnames(tfk) & !'shade' %in% colnames(tfk))
+            tfk$shade <- tfk$canopy
+          
+          ww <- which(!c(pcols) %in% colnames(tfk))
+          if(length(ww) > 0){
+            mm <- matrix(NA, nrow(tfk), length(ww))
+            colnames(mm) <- c(pcols)[ww]
+            tfk <- cbind(tfk,mm)
+          }
+          
+          treesOnly <- rbind(treesOnly, tfk[,pcols])
+        }
+        
+        if(length(treesOnly) > 0){
+          if(!'cropFractionSd' %in% colnames(treesOnly)){
+            treesOnly$cropFractionSd <- NA
+            wm <- which(is.finite(treesOnly$cropFraction))
+            fs <- .5*dbeta(treesOnly$cropFraction[wm], .1,2) + 1e-3
+            treesOnly$cropFractionSd[wm] <- fs
+          }
+          
+          if(length(tdata) > 0){
+            wc <- which(!colnames(tdata) %in% colnames(treesOnly))
+            if(length(wc) > 0){
+              for(m in 1:length(wc)){
+                treesOnly <- cbind(treesOnly, NA)
+                names(treesOnly)[length(treesOnly)] <- colnames(tdata)[wc[m]]
+              }
+            }
+          }
+          tdata <- rbind(tdata,treesOnly[,pcols])
+        }
+      }
+      
+      if(length(sdata) > 0){    #SCBI is censored
+        
+        counts <- sdata[,-c(1:5),drop=F]
+        
+        minmax <- c(grep('_min', colnames(counts)),
+                    grep('_max', colnames(counts)))
+        ss <- .replaceString(colnames(counts)[minmax],'_min','')
+        ss <- unique( .replaceString(ss,'_max','') )
+        ws <- which(!ss %in% colnames(counts))
+        if(length(ws) > 0){
+          snew <- matrix(0, nrow(counts), length(ws))
+          colnames(snew) <- ss[ws]
+          counts <- cbind(snew, counts)
+        } 
+        minmax <- c(grep('_min', colnames(counts)),
+                    grep('_max', colnames(counts)))
+        ww <- which(sdata$plot == 'SCBI_LFDP')
+        if(length(ww) > 0){
+          counts[ww,-minmax] <- NA
+          counts[-ww,minmax] <- NA
+        }
+        sdata <- cbind(sdata[,1:5], counts)
+        
+        seedData <- sdata
+        xytree   <- xy1
+        xytrap   <- xy2
+        seedData$year <- factor2integer(seedData$year)
+        
+        seed <- trimCharVec(seed, string='_min')
+        seed <- trimCharVec(seed, string='_max')
+        seedNames <- sort(unique(seed))
+      }
+      
+      if('cropCount' %in% colnames(tdata)){
+        tdata$repr[tdata$cropCount > 0] <- 1
+        tdata$repMu[tdata$cropCount > 0] <- 1
+        tdata$repSd[tdata$cropCount > 0] <- .001
+      }
+      
+      if(length(tdata) == 0)next
+      
+      treeData <- tdata
+      spec <- as.character(treeData$species)
+      
+      if(genus == 'quercus'){
+        wun  <- grep('UNKN',spec)
+        spec[wun] <- 'querRubr'
+        treeData$species <- as.factor(spec)
+      }
+      
+      treeData$year <- factor2integer(treeData$year)
+      
+    } # end regsFrom
+    
+    scfile <- paste(path, opath, regs[j],'/', genus,'.Rdata',sep='')
+    
+    dmax <- tapply(treeData$diam, treeData$species, max, na.rm=T)
+    
+    if(max(dmax) > 100){
+      print(scfile)
+      print(dmax)
+    }
+    
+    if(length(sdata) > 0){
+      save( treeData, seedData, xytree, xytrap, 
+            seedNames, specNames, file=scfile) 
+    }else{
+      save( treeData, specNames, file=scfile)
+    }
+  } 
+}
+
+
+```
+    
+     
+ 
+## START HERE FOR MODEL FITTING
+
+Settings and functions here:
+
+```{r, eval = F}
+
+region <- 'south'
+
+modelFile <- 'modelTemperate.csv'   # file of predictors
+
+plag <- p <- 0
+
+cropCountCols <- c('fecMin','cropCount')                       # censored count or count
+
+serotinousSpecies <- c('pinuSero','pinuCont','pinuBank','pinuClau')
+
+tcols <- c("plot","tree","species","year","repr","diam",
+           "cropCount","cropFraction","cropFractionSd")
+
+code <- 'code4'
+gee  <- 4
+if(region == 'south'){
+  code <- 'code7'
+  gee  <- 7
+}
+
+PREDICT <- T   # include seed prediction
+
+# run only selected plots:
+includePlots <-  c("CWT_218","DUKE_BW")
+includePlots <- NULL
+
+plotData <- read.csv( 'mastPlotsAll.csv', stringsAsFactors = F) # all location data by plot
+plotData$plotShort <- .replaceString(plotData$plot,'_','')
+
+priorVals  <- read.csv( paste(path, 'priorParameters.csv', sep=''))
+traitTable <- read.csv( paste(kpath, 'traitsByGroup/plantTraits.csv', sep=''),
+                        stringsAsFactors=F)
+
+plotRegion <- read.csv('mastPlotsAll.csv',stringsAsFactors = F)
+plotRegion <- plotRegion[!duplicated(plotRegion$plot),]
+rownames(plotRegion) <- .replaceString(plotRegion$plot, '_', '')
+
+ft <- paste(path, opath, region,sep='')
+files <- list.files(ft, full.names=T)
+gen   <- list.files(ft)
+genFull <- columnSplit(gen,'.Rdata')[,1]
+genCode <- substr(genFull, 1, gee)
+
+# folder to put output
+ff <- 'combo2_surDefLag'
+if(PREDICT)ff <- 'combo2_surDefLagPredict'
+
+outFold <- paste(path, ff, plag,'/',region,'/',sep='')
+if(!file.exists(outFold))dir.create( outFold )
+
+
+getPredictors <- function( modelFile = "modelTemperate.csv", 
+                           mpath = "/Users/jimclark/makeMastOnJimClark/makeMast/climateBuild/mastFormat/",
+                           outFolder = character(0),
+                           treeData, priorTable, dontUse = NULL, 
+                           PLOT = NULL, verbose = FALSE ){
+  
+  # mpath - path to climate climate data files
+  
+  # variables in soil_data.csv
+  soilVars <- c('cec', 'clay', 'orgCarb', 'sand', 'silt', 'orgMat', 
+                'tot', 'lab', 'org', 'occ', 'sec', 'apa')
+  specNames <- sort( unique(treeData$species) )
+  
+  modelMat <- read.csv( modelFile, stringsAsFactors = F )
+  
+  modelMat$name[ nchar(modelMat$name) == 0 ] <- 
+    modelMat$variable[ nchar(modelMat$name) == 0 ]
+  
+  tplots <- treeData$plot
+  tyears <- treeData$year
+  nyr    <- diff( range(tyears) )
+  nspec  <- length(specNames)
+  mm     <- match(treeData$species, priorTable[,code])
+  mind   <- priorTable$minDiam[ mm ]
+  
+  # diam and shade are required variables
+  ff <- '~ diam'
+  
+  betaPrior <- list(pos = 'diam' )
+  notFit <- character(0)
+  xnames <- 'diam'
+  
+  #diameter
+  rd <- tapply(treeData$diam, treeData$species, range, na.rm=T)
+  md <- sapply(rd, max)
+  rd <- sapply(rd, diff)
+  ra <- rd/md
+  ra <- ra[ names(ra) %in% specNames ]
+  
+  if( max(ra) > .7 ){ # priors on individual species?
+    ff <- paste(ff, ' + I(diam^2)')
+    betaPrior$neg <- 'I(diam^2)'
+    for(k in 1:nspec){
+      tdata <- treeData[treeData$species == specNames[k],]
+      minD  <- mind[ treeData$species == specNames[k] ]
+      minRange <- 8^2
+      mn <- range(tdata$diam, na.rm=T)
+      mn <- diff(mn)/mn[2]
+      if(mn < .7 )minRange <- Inf
+      dd <- tdata$diam^2
+      tdata <- cbind(dd, tdata)
+      colnames(tdata)[1] <- 'I(diam^2)'
+      rss <- rangeBySpec( tdata, tvar = 'I(diam^2)', minDiam = minD,
+                          minRange = minRange)
+      notFit <- c( notFit, rss )
+    }
+  }
+  
+  treeData$shade[ treeData$shade == 0 ] <- 2  # PRIMARILY TREESONLY TREES
+  
+  #shade
+  if( 'shade' %in% colnames(treeData) ){
+    
+    stab <- table(treeData$shade, treeData$species)
+    stab[ stab > 0 ] <- 1
+    if(nspec > 1){
+      stab <- colSums(stab)
+    }else{
+      stab <- sum(stab)
+    }
+    rbys <- rangeBySpec( treeData, tvar = 'shade', 
+                         minDiam = mind, minRange = .1, minSd = .1)
+    if( max(stab) > 1 & length(rbys) < nspec ){
+      ff <- paste(ff, ' + shade')
+      betaPrior$neg <- c( betaPrior$neg, 'shade')
+      if(length(rbys) > 0)notFit <- c( notFit, rbys)
+    }
+    xnames <- c(xnames, 'shade')
+  }
+  
+  #env variables
+  vnames <- unique(modelMat$name)
+  
+  # interactions
+  inames <- grep(':', vnames)                     
+  if(length(inames) > 0){
+    inames <- vnames[inames]
+    vnames <- vnames[ !vnames %in% inames ]
+  }
+  
+  nv <- length(vnames)
+  missingVars <- character(0)
+  
+  for(k in 1:nv){
+    
+    kl <- which(modelMat$name == vnames[k])
+    QUAD <- F
+    
+    if( vnames[k] %in% soilVars ){
+      
+      tvar <- vnames[k]
+      tmp  <- read.csv('soil_data.csv', stringsAsFactors = F)
+      plt  <- .fixNames(tmp$plot, all  = TRUE, MODE='character')$fixed
+      mm   <- match( tplots, plt )
+      wf   <- which(is.finite(mm))
+      wn   <- which(!is.finite(mm))
+      if(length(wn) > 0){
+        miss <- t1$missingPlots
+        if(length(miss) > 0)miss <- paste(vnames[k], miss, sep='_')
+        missingVars <- c(missingVars, miss)
+      }
+      site     <- rep(NA, nrow( treeData ))
+      site[wf] <- tmp[mm[wf],tvar]
+      treeData <- cbind(treeData, site)
+      colnames(treeData)[ncol(treeData)] <- tvar
+      
+      rbys <- rangeBySpec( treeData, tvar = tvar, minDiam = mind, minPlot = 4, 
+                           minRange = modelMat$minRange[kl[1]], minSd = modelMat$minSd[kl[1]])
+      if( length(rbys) < nspec ){
+        ff <- paste(ff, ' + ', tvar)
+        if(modelMat$priorSign[kl[1]] == 'negative')betaPrior$neg <- c( betaPrior$neg, tvar )
+        if(modelMat$priorSign[kl[1]] == 'positive')betaPrior$pos <- c( betaPrior$pos, tvar )
+        if(length(rbys) > 0)notFit <- c( notFit, rbys )
+        xnames <- c(xnames, tvar)
+        
+        if(QUAD){ 
+          betaPrior$pos <- c( betaPrior$pos, tvar) # linear term positive
+          rbys <- rangeBySpec( treeData, tvar = tvar, minDiam = mind, minPlot = 4, 
+                               minRange = 2*modelMat$minRange[kl[1]], 
+                               minSd = 2*modelMat$minSd[kl[1]])
+          if( length(rbys) < nspec ){
+            qvar <- paste( "I(", tvar, "^2)", sep='' )
+            betaPrior$neg <- c( betaPrior$neg, qvar) # quadratic term negative
+            ff <- paste(ff, ' + ', qvar)
+            if(length(rbys) > 0){
+              qq <- columnSplit(rbys, ':')
+              qq <- paste(qq[,1], paste("I(", qq[,2], "^2)", sep='' ), sep=':')
+              notFit <- c( notFit, qq )
+            }
+          }
+        }
+      }
+      next
+    }
+    
+    site <- anom <- numeric(0)
+    QUAD <- FALSE
+    
+    if(modelMat$order[kl[1]] == 2)QUAD <- TRUE
+    
+    clfile <- paste(mpath, modelMat$variable[kl], '.csv', sep='')[1]
+    
+    fun <- modelMat$fun[kl[1]]
+    ys  <- modelMat$yearStart[kl] 
+    ye  <- modelMat$yearEnd[kl]
+    ms  <- modelMat$monthStart[kl] 
+    me  <- modelMat$monthEnd[kl]
+    
+    mmat <- matrix( c(ms, me), 1, 2 )
+    ylag <- c( min(ys):max(ye) )
+    
+    if( length(ylag) > 1 ){
+      mmat <- matrix( c(ms, 12, 1, me), 2, 2, byrow=T ) # wrap around december
+      if(length(ms) > 1)mmat <- cbind(ms, me)           # does not wrap
+    }
+    
+    for(j in 1:length(ylag)){
+      mon <- mmat[j,]
+      t1  <- mastClimate( file = clfile, plots = tplots, 
+                          years = tyears + ylag[j], months = mon, FUN = fun,
+                          vname = modelMat$name[kl[1]])
+      miss <- t1$missingPlots
+      if(length(miss) > 0)miss <- paste(vnames[k], miss, sep='_')
+      missingVars <- c(missingVars, miss)
+      site <- cbind( site, t1$x[,2] )
+      anom <- cbind( anom, t1$x[,3] )
+    }
+    if( length(ylag) > 1 ){
+      if( fun == 'mean'){                  # weighted by months in both years
+        wt   <- apply( mmat, 1, diff ) + 1
+        wt   <- wt/sum(wt)
+        site <- t( t(site)*wt )
+        site <- rowSums(site, na.rm=T )
+        anom <- t( t(anom)*wt )
+        anom <- rowSums(anom, na.rm=T )
+      }else{
+        site <- apply( site, 1, fun, na.rm = T )
+        anom <- apply( anom, 1, fun, na.rm = T )
+      }
+    }
+    
+    if( modelMat$site[kl[1]] == 1 ){
+      
+      treeData <- cbind(treeData, site)
+      tvar     <- paste( modelMat$name[kl[1]],'Site',sep='')
+      colnames(treeData)[ncol(treeData)] <- tvar
+      
+      rbys <- rangeBySpec( treeData, tvar = tvar, minDiam = mind, minPlot = 4, 
+                           minRange = modelMat$minRange[kl[1]], minSd = modelMat$minSd[kl[1]])
+      if( length(rbys) < nspec ){
+        ff <- paste(ff, ' + ', tvar)
+        if(modelMat$priorSign[kl[1]] == 'negative')betaPrior$neg <- c( betaPrior$neg, tvar )
+        if(modelMat$priorSign[kl[1]] == 'positive')betaPrior$pos <- c( betaPrior$pos, tvar )
+        if(length(rbys) > 0)notFit <- c( notFit, rbys )
+        xnames <- c(xnames, tvar)
+        
+        if(QUAD){ 
+          betaPrior$pos <- c( betaPrior$pos, tvar) # linear term positive
+          rbys <- rangeBySpec( treeData, tvar = tvar, minDiam = mind, minPlot = 4, 
+                               minRange = 2*modelMat$minRange[kl[1]], 
+                               minSd = 2*modelMat$minSd[kl[1]])
+          if( length(rbys) < nspec ){
+            qvar <- paste( "I(", tvar, "^2)", sep='' )
+            betaPrior$neg <- c( betaPrior$neg, qvar) # quadratic term negative
+            ff <- paste(ff, ' + ', qvar)
+            if(length(rbys) > 0){
+              qq <- columnSplit(rbys, ':')
+              qq <- paste(qq[,1], paste("I(", qq[,2], "^2)", sep='' ), sep=':')
+              notFit <- c( notFit, qq )
+            }
+          }
+        }
+      }
+    }
+    
+    if( modelMat$anom[kl[1]] == 1 ){
+      treeData <- cbind(treeData, anom)
+      tvar     <- paste( modelMat$name[kl[1]],'Anom',sep='')
+      colnames(treeData)[ncol(treeData)] <- tvar
+      
+      rbys  <- rangeBySpec( treeData, tvar = tvar, minDiam = mind, minPlot = 1, minYr = 4,
+                            minRange = modelMat$minRange[kl[1]], minSd = modelMat$minSd[kl[1]] )
+      if(length(rbys) < nspec){
+        ff <- paste(ff, ' + ', tvar)
+        if(modelMat$priorSign[kl[1]] == 'negative')betaPrior$neg <- c( betaPrior$neg, tvar )
+        if(modelMat$priorSign[kl[1]] == 'positive')betaPrior$pos <- c( betaPrior$pos, tvar )
+        if(length(rbys) > 0)notFit <- c(notFit, rbys)
+        xnames <- c(xnames, tvar)
+        
+        if(QUAD){ 
+          betaPrior$pos <- c( betaPrior$pos, tvar) # linear term positive
+          rbys <- rangeBySpec( treeData, tvar = tvar, minDiam = mind, minPlot = 1, minYr = 5, 
+                               minRange = 1.5*modelMat$minRange[kl[1]], 
+                               minSd = 1.5*modelMat$minSd[kl[1]])
+          if( length(rbys) < nspec ){
+            qvar <- paste( "I(", tvar, "^2)", sep='' )
+            betaPrior$neg <- c( betaPrior$neg, qvar) # quadratic term negative
+            ff <- paste(ff, ' + ', qvar)
+            if(length(rbys) > 0){
+              qq <- columnSplit(rbys, ':')
+              qq <- paste(qq[,1], paste("I(", qq[,2], "^2)", sep='' ), sep=':')
+              notFit <- c( notFit, qq )
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  notFit <- unique(notFit)
+  
+  ft <- columnSplit(ff, ' + ')
+  ft <- .replaceString(ft, ' ', '')
+  ft <- .replaceString(ft, '~', '')
+  ft <- unique( as.vector(ft) )
+  
+  if( length(notFit) > 0 ) notFitVars <- columnSplit(notFit, ':')
+  
+  
+  if(length( inames ) > 0){
+    
+    # both main effects in model?
+    ikeep <- inot  <- iterm <- mterm <- character(0)
+    
+    for( i in 1:length(inames) ){
+      
+      # both main effects in model
+      ii <- columnSplit( inames[i], ':' )
+      tm <- which( startsWith(ft, ii[1] ) ) 
+      ti <- which( startsWith(ft, ii[2] ) ) 
+      
+      if(length(tm) == 1 & length(ti) == 1){
+        ikeep <- c(ikeep, inames[i])
+        iterm  <- c(iterm, ft[ti] )
+        mterm  <- c(mterm, ft[tm] )
+        
+        if( length(notFit) > 0 ){
+          
+          i1 <- grep( ft[ti], notFit)        # main effect excluded for some species
+          i2 <- grep( ft[tm], notFit)
+          
+          if(length(i1) > 0 ){
+            n1 <- paste( notFitVars[i1,1], inames[i], sep=':' )
+            inot <- c(inot, n1)
+          }
+          if(length(i2) > 0 ){
+            n1 <- paste( notFitVars[i2,1], inames[i], sep=':' )
+            inot <- c(inot, n1)
+          }
+        }
+      }
+    }
+    
+    if(length(ikeep) > 0){
+ 
+      fi <- ikeep
+      if(length(ikeep) > 1)fi <- paste0( ikeep, collapse = ' + ' )
+      ff <- paste( ff, fi, sep =  ' + ' )
+      
+      if(length(inot) > 0){  # species to exclude
+        notFit <- c(notFit, inot)
+      }
+    }
+  }
+  
+  notFit <- sort( unique( notFit ) )
+  
+  if(length(notFit) > 0){
+    nf <- columnSplit(notFit,'species')[,2]
+    nf <- stringi::stri_split_fixed(nf, ":", 2, simplify = TRUE)[,1]
+    notFit <- notFit[ nf %in% specNames ]
+  }
+  
+  md <- which( names(dontUse) %in% specNames )
+  
+  for(m in md){
+    
+    if( !names(dontUse)[m] %in% specNames )next
+    
+    mname <- paste( names(dontUse)[m], dontUse[[m]], sep=':')
+    mname <- paste( 'species', mname, sep='')
+    notFit <- c(notFit, mname)
+  }
+  
+  if(length(notFit) > 0){
+    notFit <- sort( unique(notFit) )
+    inputs$betaPrior$notFit <- notFit
+  }
+  
+  if(verbose){
+    if(length(missingVars) > 0){
+      print(' missing variables' )
+      print( missingVars )
+    }
+  }
+  
+  for(m in 1:length(betaPrior)){
+    betaPrior[[m]] <- unique(betaPrior[[m]])
+  }
+  
+  ff <- as.formula( paste( ff, collapse = ' ') )
+  
+  if( PLOT == 'png' & length(xnames) > 2){
+    
+    knames <- xnames[-1]
+    
+    for(k in 1:nspec){
+      tk <- treeData[treeData$species == specNames[k],]
+      file <- paste( outFolder, specNames[k],'.png', sep = '')
+      png( file = file )
+      pairs( tk[, knames], cex = .1 )
+      dev.off()
+    }
+  }
+  
+  list( formulaFec = ff, treeData = treeData, betaPrior = betaPrior,
+        missing = missingVars, notFit = notFit )
+} 
+ 
+getSeedTraits <- function( specNames, code,
+                           file = "/Users/jimclark/makeMastOnJimClark/traitsByGroup/plantTraits.csv"){
+  
+  # code = 'code4', 'code7'
+  traitTable <- read.csv( file, stringsAsFactors=F)
+  
+  wspec <- match( specNames,traitTable[,code] )
+  seedMass <- as.matrix( traitTable[wspec,'gmPerSeed',drop=F] ) # gm per seed
+  rownames(seedMass) <- specNames
+  
+  wna <- which(is.na(seedMass))
+  if(length(wna) > 0){
+    seedMass[wna] <- mean(seedMass,na.rm=T)
+  }
+  
+  seedMass[is.na(seedMass)] <- 1
+  seedsPerFruit <- as.matrix( traitTable[wspec,'seedsPerFruit',drop=F] )
+  rownames(seedsPerFruit) <- specNames
+  
+  traits <- traitTable[match(specNames,traitTable[,code]),
+                       c(code,"gmPerSeed","seedsPerFruit")]
+  missSpec <- which(is.na(traits[,code]))
+  if(length(missSpec) > 0)traits[,code][missSpec] <- specNames[missSpec]
+  
+  rownames(traits) <- traits[,code]
+  seedTraits <- traits[,c("gmPerSeed","seedsPerFruit")]
+  
+  wna <- which(is.na(seedTraits), arr.ind=T)
+  if(length(wna) > 0){
+    tmu <- signif( colMeans(seedTraits, na.rm=T), 3 )
+    seedTraits[ wna ] <- tmu[ wna[,2] ]
+  }
+  
+  seedTraits[is.na(seedTraits)] <- 1
+  seedTraits
+}
+  
+rangeBySpec <- function( tdat, tvar = 'shade', minDiam = 1,
+                         minPlots = 1, minYr = 1, minRange = .1, minSd = 1){
+  
+  # find species that do not span sufficient variation in predictor tvar
+  # tdat     - treeData
+  # tvar     - variable name
+  # minDiam  - examine on trees bigger than this
+  # minPlots - minimum number of plots
+  # minYr    - minimum no. years
+  # minRange - minimum range in tvar
+  # minSd    - minimum standard deviation in tvar
+  
+  td   <- tdat[ tdat$diam > minDiam,]
+  ptab <- table(td$plot,td$species)
+  if(nrow(ptab) < minPlots) return( paste( 'species', colnames(ptab), ':', tvar, sep='' ) )
+  
+  ptab[ which(ptab > 1) ] <- 1
+  ptab  <- colSums(ptab)
+  wspec <- names(ptab)[ptab < minPlots]
+  if(length(wspec) > 0) td[ td$species %in% wspec ,tvar] <- 0
+  
+  ptab <- table(td$year, td$species)
+  ptab[ ptab > 1 ] <- 1
+  ptab <- colSums(ptab)
+  wspec <- names(ptab)[ptab < minYr]
+  if(length(wspec) > 0) td[ td$species %in% wspec ,tvar] <- 0
+  
+  
+  nf  <- character(0)
+  
+  rbys <- tapply( td[,tvar], td$species, range, na.rm = T)
+  rbys <- sapply(rbys, diff)
+  wm   <- which(rbys < minRange)
+  if(length(wm) > 0){
+    qf <- names(wm)
+    nf <- paste( 'species', qf, ':', tvar, sep='' )
+  }
+  
+  sbys <- tapply( td[,tvar], td$species, sd, na.rm = T)
+  wm <- which(sbys < minSd)
+  if(length(wm) > 0){
+    qf <- names(wm)
+    nf <- c(nf, paste( 'species', qf, ':', tvar, sep='' ) )
+  }
+  unique(nf)
+}
+
+skipGen <- skipSpec <- dontUse <- NULL
+
+if(region == 'west'){
+  skipSpec <- c("acerNegu")
+  skipGen <- c('adenostoma','arctostaphylos','baccharis','berberis','ceanothus',
+               'cornus','corylus','cotoneaster','crataegus','eucalyptus',
+               'fraxinus','gaultheria','eriobotrya','hedera','heteromeles',
+               'holodiscus','malus','menziesia','oemleria','populus','prunus',
+               'pyracantha','rhododendron','rhamnus','ribes','robinia','rosa','rubus',
+               'salix','sambucus','sapindus',
+               'ilex','lonicera','toxicodendron','umbellularia','vaccinium')
+  dontUse <- list( abieGran = c("defAnom"),
+                   abieProc = c("diam:defSite"),
+                   acerMacr = c("summerTempSite", "diam:defSite"),
+                   acerNegu = c("defSite", "springTminAnom","diam:defSite"),
+                   caloDecu = "defAnom",
+                   juniMono = "I(diam^2)",
+                   pinuAlbi = c("defSite"), 
+                   pinuCont = c("defSite", "diam:defSite"),
+                   pinuFlex = c( "defSite", "shade", "I(diam^2)", "springTminAnom", 
+                                 "defAnom", "diam:defSite", "springTminSite"),
+                   pinuLamb = c("diam:defSite"),
+                   pinuMont = c(""),
+                   pinuPond = c("springTminSite", "diam:defSite"), 
+                   pinuRadi = c("defSite", "springTminAnom",
+                                "defAnom","diam:defSite"),
+                   pinuSabi = c("defSite", "defAnom", "springTminAnom", "springTminSite",
+                                "diam:defSite"),
+                   sequGiga = c("diam:defSite"),
+                   tsugHete = c("summerTempSite", "diam:defSite")
+                    )
+  
+}else if(region == 'east'){
+  skipGen <- c("aesculus","albizia","alnus","aralia","berberis",
+               "betulaceae","castanea","corylus","elaeagnus","hamamelis",
+               "hedera","lonicera",
+               "malus","metasequoia","populus",
+               "rhamnus","rhododendron","rhus","rosa","rubus",
+               "salix","sambucus","sideroxylon","vaccinium","viburnum")
+  dontUse <- list( abieBals = "springTminSite",
+                   acerNegu = c("defAnom"),
+                   acerPlat = c("springTminAnom","springTminSite","defAnom",
+                                "defSite", "diam:defSite"),
+                   amelArbo = "I(diam^2)",
+                   amelLaev = "diam:defSite",
+                   betuAlle = "springTminSite",
+                   betuLent = "springTminAnom",
+                   betuPapy = "defAnom",
+                   caryOvalGlab = "springTminSite",
+                   caryUNKN = c("defAnom", "diam:defSite"),
+                   cercCana = "springTminSite",
+                   diosVirg = c("defAnom", "diam:defSite"),
+                   faguGran = c("summerTempSite","I(summerTempSite)^2"),
+                   gledTric = c("summerTempSite","I(summerTempSite)^2"),
+                   ilexOpac = c("summerTempSite", "springTminAnom"),
+                   juglNigr = c("summerTempSite", "springTminSite"),
+                   lariLari = c("summerTempSite", "springTminAnom"),
+                   liquStyr = c("springTminAnom"),
+                   liriTuli = c("springTminAnom"),
+                   magnFras = c("summerTempSite", "defAnom", "defSite"),
+                   magnGran = c("summerTempSite", "springTminAnom",
+                                "defSite","diam:defSite"),
+                   paulTome = c("defAnom","springTminSite","defSite"),
+                   nyssSylv = c("springTminAnom","defSite"),
+                   ostrVirg = c("springTminSite","springTminAnom","defSite",
+                                "diam:defSite"),
+                   piceMari = c("defSite", "diam:defSite"),
+                   piceRube = c("springTminAnom","I(summerTempSite)^2"),
+                   pinuEchi = c("springTminSite","summerTempSite",
+                                "I(summerTempSite)^2", "diam:defSite"),
+                   pinuElli = c("defAnom"),
+                   pinuPalu = c("springTminSite"),
+                   pinuResi = c("diam:defSite"),
+                   pinuRigi = c("springTminSite"),
+                   pinuStro = c("I(summerTempSite)^2"),
+                   pinuVirg = c("defSite"),
+                   querAlba = c("springTminSite"),
+                   querCocc = c("springTminSite"),
+                   querNigr = c("springTminAnom"),
+                   querStel = c("diam:defSite"),
+                   querVelu = c("diam:defSite")
+                   )
+  
+}else if(region == 'europe'){
+  skipSpec <- c("acerNegu", "juglNigr", "querRubr")
+  skipGen <- c("ailanthus","alnus","amelanchier",
+               "chamaecyparis", "cupressus","ficus",
+               "hedera","juniperus","ostrya","populus", "robinia")
+  dontUse <- list( abieAlba = c("summerTempSite"),
+                   abiePins = c("springTminSite",  "defAnom",  
+                                "summerTempSite", "I(summerTempSite)^2"),
+                   cedrLiba = c("springTminSite",  "summerTempSite", "I(summerTempSite)^2"),
+                   ilexAqui = c("summerTempSite", "I(summerTempSite)^2"),
+                   pinuUnci = c("diam:defSite"),
+                   querIlex = c("springTminAnom","diam:defSite"),
+                   querPetr = c("springTminSite"),
+                   querSube = c("springTminSite") )
+}else if(region == 'south'){
+ # skipSpec <- c("querRubr")
+ skipGen <- c("myriocarpa")
+ dontUse <- list( alchornGrandif = c("defSite"),
+                   alchornLatifol = c("defSite") )
+}
+```
+
+fitting here:
+
+```{r}
+
+ng <- 1000
+ie <- 1
+
+for(t in ie:length(genFull)){
+  
+  PREDICT <- F   # include seed prediction
+  
+  seedData <- seedNames <- NULL
+  
+  genus <- genFull[t]
+  
+  if(genus %in% skipGen)next
+  
+  print('_______________________')
+  print(genus)
+  
+  ft <- paste(path, opath, region,'/', genus,'.Rdata',sep='')
+  if(!file.exists(ft))next
+  
+  # output file
+  file    <- paste(outFold, genFull[t],"Output.rdata", sep='')
+  modFile <- paste(outFold, genFull[t],"Model.csv", sep='')
+  
+  treeData <- seedData <- xytree <- xytrap <- NULL
+  SEEDDATA <- F
+  
+  load( ft )
+  
+  treeData$diam[ treeData$diam == 0 ] <- NA
+  treeData$species <- as.character(treeData$species)
+  treeData$plot    <- as.character(treeData$plot)
+  
+  priorTable <- mastPriors(paste(path, 'priorParameters.csv', sep=''), 
+                           unique(treeData$species),
+                           code= code, genus = genus)
+  tid   <- columnPaste(treeData$plot, treeData$tree)
+  maxd  <- tapply(treeData$diam, tid, max, na.rm=T)
+  maxd[ !is.finite(maxd) ] <- 0
+  maxd  <- maxd[ tid ]
+  mm    <- match( treeData$species, rownames(priorTable) )  
+  mind  <- priorTable$minDiam[ mm ]
+  keep  <- maxd > 1
+  
+  treeData <- treeData[ !is.na(treeData$diam) & keep & # BCI includes down to 1 mm
+                          !treeData$species %in% skipSpec,]
+  if(length(includePlots) > 0){    
+    treeData <- treeData[treeData$plot %in% includePlots,]
+  }
+  
+  if(!is.null(seedData) | length(seedData) > 1)SEEDDATA <- T
+  
+  try(
+    ttt <- treeSeedPlots( treeData, seedData, xytree, xytrap, seedNames, minTrees = 10, 
+                          skipSpec = skipSpec, combineSeeds = combineSeeds,
+                          combineSpecs = combineSpecs, cropCountCols = cropCountCols,
+                          verbose = T), TRUE)
+  treeData   <- ttt$treeData
+  
+  if(is.null(treeData) | inherits(ttt,'try-error') )next     # no seeds or cropCounts
+  
+  seedData   <- ttt$seedData
+  xytree     <- ttt$xytree
+  xytrap     <- ttt$xytrap
+  specNames  <- ttt$specNames
+  seedNames  <- ttt$seedNames
+  nspec <- length(specNames)
+  
+  if(nrow(treeData) == 0 | length(specNames) == 0)next
+  
+  #prior for serotiny
+  if('serotinous' %in% colnames(treeData)){
+    ww <- which(treeData$species %in% serotinousSpecies &
+                  is.na(treeData$serotinous))
+    if(length(ww) > 0)treeData$serotinous[ww] <- .5
+  }
+  
+  seedTraits <- getSeedTraits( specNames, code,
+                               file = paste(kpath, 'traitsByGroup/plantTraits.csv', sep=''))
+  
+  randomEffect <- list(randGroups = 'treeID', formulaRan = as.formula( ~ 1 ) )
+  yearEffect   <- list(groups = c('species','ecoCode'), p = plag)
+  
+  plots <- sort(unique(as.character(treeData$plot)))
+  years <- sort(unique( treeData$year ))
+  if(SEEDDATA)years <- sort(unique(c(treeData$year,seedData$year)))
+  
+  inputs   <- list( specNames = specNames, combineSpecs = combineSpecs,
+                    combineSeeds = combineSeeds,
+                    seedTraits = seedTraits, treeData = treeData, 
+                    priorTable = priorTable)
+  if( SEEDDATA ){
+    inputs$seedData  <- seedData
+    inputs$xytrap    <- xytrap
+    inputs$xytree    <- xytree
+    inputs$seedNames <- seedNames
+  }
+  
+  try(
+    inputs    <- mastFillCensus(inputs, beforeFirst = 15, afterLast = 15, p = plag,
+                                verbose = T), TRUE)
+  if( inherits(inputs,'try-error') ){
+    print('')
+    print( paste('-----------------------try error:', specNames[1] ) )
+    next
+  }
+  
+  treeData  <- inputs$treeData
+  
+  # ecoRegions
+  plotRegion$plot <- .replaceString(plotRegion$plot, '_', '')
+  mm <- match(treeData$plot, plotRegion$plot)
+  wf <- which(is.na(mm))
+  ee <- plotRegion$ecoRegWWF[mm]
+  rr <- plotRegion$ecoRegWWF[mm]
+  t3 <- table(ee)
+  t3[1:length(t3)] <- 1:length(t3)
+  treeData$ecoReg  <- rr
+  treeData$ecoCode <- t3[rr]
+  
+  outPlots <- paste('envBySpeciesPlots/', region, '/',sep='')
+  
+  # predictors
+  ttt <- getPredictors( modelFile = "modelTemperate.csv", 
+                        mpath = mpath, outFolder = outPlots,
+                        treeData, priorTable, dontUse = dontUse, verbose = T,
+                        PLOT = 'png')
+  formulaFec  <- ttt$formulaFec
+  inputs$treeData  <- ttt$treeData
+  inputs$betaPrior <- ttt$betaPrior
+  inputs$betaPrior$notFit <- ttt$notFit
+  missingVars <- ttt$missingVars
+  
+  formulaRep <- as.formula( ~ diam )
+  inputs$specNames <- sort( unique( inputs$treeData$species ) )
+  inputs$FECWT   <- T
+  inputs$verbose <- T
+  
+  ww <- grep('DUKEFACE',inputs$treeData$plot)
+  if(length(ww) > 0)inputs$treeData$cropFraction[ww] <- .98
+  
+  ifile <- paste('initialFecundity/',region,'/',genus,'.csv',sep='')
+  
+  if( file.exists(ifile) & 5 == 3 ){      #SKIP
+    
+    fvalues  <- read.csv(ifile, stringsAsFactors = F)
+    
+    predTrYr <- sort( columnPaste(fvalues$treeID, fvalues$year,'_') )
+    
+    rr <- sort( rownames(inputs$treeData) )
+    mm <- match(rr, predTrYr)
+    wf <- which(is.finite(mm))
+    
+    inputs$treeData$lastFec      <- inputs$treeData$lastRepr <- NA
+    inputs$treeData$lastFec[wf]  <- fvalues$fecEstMu[mm[wf]]
+    inputs$treeData$lastRepr[wf] <- fvalues$matrEst[mm[wf]]
+  }
+  
+  output <- mastif(inputs, formulaFec, formulaRep, ng = 400, 
+                   burnin = 100, yearEffect = yearEffect,
+                   randomEffect = randomEffect)
+  
+ # save(output, file = file) 
+  
+  predPlots <- sort( unique(xytrap$plot) )
+  
+  ngg <- ng
+  if(nrow(treeData) > 100000)ngg <- round(ngg*.6)
+  
+  predList <- NULL
+  if(!SEEDDATA)PREDICT <- F
+  
+  if(PREDICT){
+    predList <- list(mapMeters = 10, plots = predPlots, years = years )
+    ngg <- round( ngg/4 )
+  }
+  
+  output <- mastif(inputs = output, formulaFec, formulaRep,  ng = ngg, 
+                   burnin = 500, yearEffect = yearEffect,
+                   randomEffect = randomEffect, predList = predList)
+  
+  print(output$inputs$formulaFec)
+  
+  save(output, file = file)
+  
+  mod <- read.csv(modelFile, stringsAsFactors = F)
+  write.csv( mod, file = modFile )
+  
+  
+  for(k in 1:length(output)){
+    
+    namek <- names(output)[k]
+    
+    if(namek == 'inputs'){
+      
+      output$inputs <- output$inputs[ !names(output$inputs) %in% 
+                                        c("inwords", "keepIter", "matYr", 
+                                          "parameters", "plotInput", 
+                                          "seedByPlot", "summary") ]
+    }
+    
+    dname <- paste(outFold, genFull[t], '/',  sep='')
+    fname <- paste(dname, namek, '.rdata', sep='')
+    
+    assign(namek, output[[k]])
+    
+    DD <- file.exists(dname)
+    if(!DD) dir.create(dname)
+    
+    save( list = namek, file = fname )
+    rm( list = namek )
+  }
+  
+  fecPred <- output$prediction$fecPred
+  
+  # include lon, lat
+  xyt <- output$inputs$xytree
+  
+  LOC <- F
+  if(!is.null(xyt) & LOC){
+    
+    xyj <- data.frame( UTMx = rep(NA, nrow(fecPred)), 
+                       UTMy = NA, zone = NA, stringsAsFactors = F)
+    
+    # first get coord within trapped plots
+    mm   <- match(fecPred$treeID, xyt$treeID)
+    wf   <- which(is.finite(mm))
+    xyj[wf,c('UTMx','UTMy')] <- xyt[mm[wf],c('x','y')]
+    
+    # utm zone and x,y for non-trapped plots
+    utab <- read.csv('mastPlotsAll.csv',stringsAsFactors = F)
+    utab <- utab[!duplicated(utab$plot),]
+    uplt <- .replaceString(utab$plot,'_','')
+    mm   <- match(fecPred$plot, uplt)
+    wf   <- which(is.finite(mm))
+    wn   <- which(!is.finite(mm))
+    xyj[wf,'zone'] <- utab[mm[wf],'UTMzone']
+    
+    lonLat <- xyj 
+    wf <- which(is.finite(xyj[,'UTMx']))
+    
+    lonLat[wf,1:2] <- UTM2latlon( xy = as.matrix(xyj[wf,c('UTMx','UTMy')]), 
+                                  zone = xyj[wf,'zone'])
+    colnames(lonLat)[1:2] <- c('lon','lat')
+    
+    fecPred <- cbind(fecPred, xyj, lonLat)
+  }
+  
+  rm(output)
+}
+
+# plotPars <- list(SAVEPLOTS=T, SPACETIME=T) 
+# mastPlot(output, plotPars)
+ 
+```
+ 
+fecundity by diameter plots:
+```{r}
+
+region <- 'west'
+
+ff <- 'combo2_surDefLagPredict'
+outFold <- paste(path, ff, '0/',region,'/',sep='')
+
+lf <- list.files(outFold, full.names = T)
+lf <- lf[ grep('.rdata',lf) ]
+
+increase <- decrease <- numeric(0)
+specInc <- specDec <- character(0)
+
+ie <- 1
+
+for(k in ie:length(lf)){
+  
+  load( lf[k] )
+  
+  print(lf[k])
+  
+  d90 <- mastPlot( output, plotPars = list(SAVEPLOTS = T, RMAT = F, MAPS = F) )
+  
+  if(length(d90) == 0)next
+  
+  d90 <- d90$diam90
+  
+  specNames <- names(d90$inflection)
+  
+  for(j in 1:length(specNames)){
+    
+    df <- d90$inflection[[j]]
+    fc <- d90$fecundity[[j]]
+    
+    if(length(fc) == 0)next
+    
+    if(is.na(df[1]) | df[1] < 0 | df[1,2] < 1 |
+       which.max(fc[1,]) == ncol(fc) ){
+      inc <- list(inflection = df, fecundity = fc)
+      increase <- append(increase,  list(inc) )
+      specInc <- c(specInc, specNames[j])
+    }else{
+      dec <- list(inflection = df, fecundity = fc)
+      decrease <- append(decrease,  list(dec) )
+      specDec <- c(specDec, specNames[j])
+    }
+  }
+}
+names(increase) <- specInc
+names(decrease) <- specDec
+
+plot(NA, xlim = c(0,2), ylim = c(0, 2),
+     xlab = 'D/D*', ylab = 'F/F*')
+nspec <- length(decrease)
+
+for(j in 1:nspec){
+  fec <- decrease[[j]]
+  fj  <- fec$fecundity/fec$inflection[1,2]
+  dj  <- 1:ncol(fj)
+  dj  <- dj/fec$inflection[1]
+#   lines(dj, fj[1,])
+  .shadeInterval( dj, t(fj[2:3,]) , col=.getColor('tan', .01) )
+}
+for(j in 1:nspec){
+  fec <- decrease[[j]]
+  fj  <- fec$fecundity/fec$inflection[1,2]
+  dj  <- 1:ncol(fj)
+  dj  <- dj/fec$inflection[1]
+   lines(dj, fj[1,], col=j)
+#  .shadeInterval( dj, t(fj[2:3,]) , col=.getColor('tan', .01) )
+}
+
+
+```
+
+write Latex:
+
+```{r, eval = F}
+
+xx <- summary(output, verbose=F)
+xx$adata <- t(xx$adata)
+xx$pacfss <- as.data.frame(xx$pacfss)
+colnames(xx$pacfss) <- 'Estimate'
+nn <- nrow(xx$pacfss)
+xx$pacfss <- xx$pacfss[1:min(c(nn,10)),1,drop=F]
+
+
+# latex tables
+print( xtable::xtable( xx$adata, caption='Data summary', digits=0 ) )
+
+tnames <- names(xx)
+for(k in 1:length(tnames)){
+  xk <- xx[tnames[k]][[1]]
+  if(tnames[k] %in% c('fit', 'words'))next
+  if(tnames[k] == 'adata')xk <- t(xk)
+  print('')
+  print(tnames[k])
+  xp <- as.data.frame(xk)
+  ww <- which(sapply(xp, is.complex))
+  if(length(ww) > 0)for(w in ww)xp[[w]] <- as.character(xp[[w]])
+  
+  print( xtable::xtable( xp, caption=attr(xk,'caption'), digits=3 ) )
+}
+```
+
+
+
+diameter/fecundity relationships
+
+```{r}
+
+plotData <- read.csv( 'mastPlotsAll.csv', stringsAsFactors = F) 
+plotData$plotShort <- .replaceString(plotData$plot,'_','')
+
+priorVals  <- read.csv( paste(path, 'priorParameters.csv', sep=''))
+traitTable <- read.csv( paste(kpath, 'traitsByGroup/plantTraits.csv', sep=''),
+                        stringsAsFactors=F)
+
+plotRegion <- read.csv('mastPlotsAll.csv',stringsAsFactors = F)
+plotRegion <- plotRegion[!duplicated(plotRegion$plot),]
+rownames(plotRegion) <- .replaceString(plotRegion$plot, '_', '')
+
+regions <- c('east','west','europe', 'south', 'asia', 'africa')
+genFull <- character(0)
+for(k in 1:length(regions)){
+  ft <- paste(path, opath, regions[k], sep='')
+  files <- list.files(ft, full.names=T)
+  gen   <- list.files(ft)
+  gg <- columnSplit(gen,'.Rdata')[,1]
+  genFull <- c(genFull, gg)
+}
+
+genFull <- sort(unique(genFull))
+
+ff <- 'combo2_surDefLagPredict0'
+
+
+
+
+diamFec <- inflection <- dfScaled <- numeric(0)
+
+ie <- 1
+
+for(t in ie:length(genFull)){
+  
+  for(r in 1:length(regions)){
+    
+    reg <- regions[r]
+    
+    inFold <- paste(path, ff,'/',reg,'/',sep='')
+  
+    file <- paste(inFold, genFull[t],"Output.rdata", sep='')
+    
+    if( !file.exists( file ) )next
+
+    if( file.info( file )$size >  100000000 ) next # just for now
+
+    load(file)
+    
+    outFolder <- paste('diamFec/',reg,'/',genFull[t],sep='')
+    
+    DE <- dir.exists(outFolder)
+    if(!DE)dir.create(outFolder, recursive=T)
+    
+    check <- try(
+      tmp <- mastPlot( output, list(MAPS = F, SAVEPLOTS = T, outFolder = outFolder) ), 
+      silent = TRUE)
+    
+    rm(output)
+    
+    if( inherits(check, "try-error") )next
+    
+    if(length(tmp) == 0)next
+    tmp <- tmp$diam90
+    
+    nrt <- paste( reg, names(tmp$diamFec), sep='_')
+    names(tmp$diamFec) <- nrt
+    names(tmp$inflection) <- nrt
+    
+    diamFec    <- append(diamFec, as.list(tmp$diamFec))
+    inflection <- append(inflection, as.list(tmp$inflection))
+    
+    wf <- which( sapply(tmp$inflection, length) > 0 )
+    fname <- character(0)
+    drk <- numeric(0)
+    
+    for(m in wf){
+      dm <- tmp$inflection[[m]]
+      ym <- tmp$diamFec[[m]]
+      x  <- (1:ncol(ym))
+      
+      xmax <- which.max(ym[1,])
+      x   <- x/xmax
+      ym  <- ym/max(ym[1,])
+      fm  <- rbind(x, ym)
+      fname <- c( fname, names(tmp$inflection)[m] )
+      drk <- append(drk, list(fm) )
+    }
+    names(drk) <- fname
+    dfScaled <- append(dfScaled, as.list(drk))
+    
+  # clean up plot files
+  frm <- list.files( outFolder, full.names = T )
+  file.remove(frm, recursive = T)
+  }
+}
+
+incSpec <- optSpec <- character(0)
+nc      <- max( sapply(dfScaled, ncol) )
+#width <- rep(0, length(dfScaled))
+
+width <- matrix( 0, length(dfScaled), nc)
+rownames(width) <- names(dfScaled)
+keep  <- numeric(0)
+
+for( k in 1:length(dfScaled)){
+  
+  dk <- dfScaled[[k]]
+  nm <- names(dfScaled)[k]
+  wm <- which.max( dk[2,] )
+  if( length(wm) == 0 ) next
+  
+#  width[k] <- 1/diff( dfScaled[[k]][ 3:4, wm ] )
+  
+  width[k, 1:ncol(dk)] <- dk[4,] - dk[3,]
+  keep <- c(keep, k)
+  
+  if( wm == ncol( dfScaled[[k]] )){
+    incSpec <- c(incSpec, nm)
+  }else{
+    optSpec <- c(optSpec, nm)
+  }
+}
+
+#width <- width + .1
+width[ width > 10 ] <- 10  # intensity scaled by posterior
+width <- 1 - width/max(width)
+width[ width < .1] <- .1
+width[ width > .9] <- .9
+
+ii <- match( incSpec, names(dfScaled) )
+io <- match( optSpec, names(dfScaled) )
+
+xlab <- expression( frac('D', 'D'[m]) )
+ylab <- expression( frac('F', 'F'[m]) )
+
+
+par(mfrow=c(2,1), bty='n', mar=c(2,2,3,1), omi=c(1,.8,0,.5))
+plot( NA, xlim=c(0,1.5), ylim = c(0, 1), xlab='',ylab = '' )
+
+for(k in io){
+  df <- dfScaled[[io[k]]][1:2,]
+  if(length(df) == 0)next
+  nt <- ncol(df)
+  wk <- width[io[k], 1:nt]^3
+  wk[wk < .05] <- .05
+  
+  segments( df[1,1:(nt-1)], df[2,1:(nt-1)], df[1,2:nt], df[2,2:nt],
+          col = .getColor('black', wk[1:(nt-1)]), lwd = 2 )
+  
+ # lines(df[1,], df[2,], lwd = 1, 
+ #       col = .getColor('black', width[k]))
+}
+lab <- paste( 'a)', length(io), 'regions-spp have optima' )
+.plotLabel(lab, above=T, cex=1)
+
+plot( NULL, xlim=c(0,1), ylim = c(0, 1), xlab='', ylab = '' )
+for(k in ii){
+  df <- dfScaled[[ii[k]]][1:2,]
+  if(length(df) == 0)next
+  nt <- ncol(df)
+  wk <- width[ii[k], 1:nt]^3
+  wk[wk < .05] <- .05
+  
+  segments( df[1,1:(nt-1)], df[2,1:(nt-1)], df[1,2:nt], df[2,2:nt],
+          col = .getColor('black', wk[1:(nt-1)]), lwd = 2 )
+  
+#  lines(dfScaled[[k]][1,], dfScaled[[k]][2,], lwd = 1 + width[k]^.5,
+#        col = .getColor('black', width[k]))
+}
+lab <- paste( 'b)', length(ii), 'regions-spp do not' )
+.plotLabel( lab, above=T, cex=1)
+mtext(xlab, side=1, outer  = TRUE, line=2)
+mtext(ylab, side=2, outer  = TRUE, line=1)
+
+
+```
+
+
+
+OMIT
+
+```{r, eval = F}
+#summaryAR4 <- summary(output)
+
+plotPars <- list(SAVEPLOTS = T, SPACETIME=T)
+mastPlot(output, plotPars)
+
+meanVarianceScore(output, ctree=2, cspace=10, cyr = 5,
+                              LAGMAT=F, Q = c(.5, .025, .975), nsim = 1)
+
+library(corrplot)
+tvar <- cov2cor( output$prediction$entropyEst$TvarEst[[2]] )
+ord  <- order(colnames(tvar))
+tvar <- tvar[ord,ord]
+
+corrplot(tvar, method='color', type='lower', diag=F)
+
+#space
+
+t13 <- grep('2013',rownames(tvar))
+corrplot(tvar[t13,t13], method='color', type='lower', diag=F)
+
+#time
+t1 <- grep('204-',rownames(tvar))
+corrplot(tvar[t1,t1], method='color', type='lower', diag=F)
+
+
+```
+
+yield and total variance
+
+```{r, eval = F}
+
+mvs <- meanVarianceScore(output, Q = pnorm(c(0, -1, 1)), nsim=1, LAGMAT = T,
+                        ktree = 1000, maxSite = 100, CLOSE = F)
+
+mvs$totalScore
+
+
+
+```
+
+
+
+A loop to store initial values from previous output
+
+```{r, eval = F}
+
+outFold <- paste(path, 'comboAnalysis/',sep='')
+ffile <- paste(outFold,'fecInit.rdata',sep='')
+
+for(t in ie:length(genFull)){
+  
+  outFile <- paste(outFold, genFull[t], '/',sep='')
+  file <- paste(outFile, genFull[t],"Output.rdata", sep='')
+  
+  load(file)
+  
+  tmp <- output$prediction$fecPred
+  
+  treeYr <- columnPaste(tmp$treeID, tmp$year)
+  
+  fecInit <- cbind(treeYr, tmp[,c('species','matrEst','fecEstMu','fecEstSe')] )
+  
+  save(fecInit, file=ffile)
+  
+}
+```
+
